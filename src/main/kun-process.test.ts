@@ -616,4 +616,149 @@ describe('syncGuiManagedKunConfig', () => {
       provider: 'custom-search'
     })
   })
+
+  it('replaces stale web provider secrets and endpoints when GUI web search provider changes', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    writeFileSync(configPath, JSON.stringify({
+      capabilities: {
+        web: {
+          enabled: true,
+          fetchEnabled: true,
+          searchEnabled: true,
+          provider: 'brave-search',
+          apiKey: 'old-brave-key',
+          baseUrl: 'https://api.search.brave.com/res/v1/web/search'
+        }
+      }
+    }), 'utf8')
+    const module = await import('./kun-process')
+
+    await module.syncGuiManagedKunConfig(tempRoot, {
+      ...defaultKunRuntimeSettings(),
+      webSearch: {
+        ...defaultKunRuntimeSettings().webSearch,
+        enabled: true,
+        fetchEnabled: true,
+        searchEnabled: true,
+        provider: 'searxng',
+        apiKey: '',
+        baseUrl: 'http://127.0.0.1:8080/search',
+        allowDomains: [],
+        denyDomains: []
+      }
+    })
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
+    expect(parsed.capabilities.web).toMatchObject({
+      enabled: true,
+      fetchEnabled: true,
+      searchEnabled: true,
+      provider: 'searxng',
+      baseUrl: 'http://127.0.0.1:8080/search'
+    })
+    expect(parsed.capabilities.web.apiKey).toBeUndefined()
+  })
+
+  it('enables web search automatically when a search provider is selected', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    const module = await import('./kun-process')
+
+    await module.syncGuiManagedKunConfig(tempRoot, {
+      ...defaultKunRuntimeSettings(),
+      webSearch: {
+        ...defaultKunRuntimeSettings().webSearch,
+        enabled: true,
+        fetchEnabled: true,
+        searchEnabled: false,
+        provider: 'searxng',
+        apiKey: '',
+        baseUrl: 'http://127.0.0.1:8080/search',
+        allowDomains: [],
+        denyDomains: []
+      }
+    })
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
+    expect(parsed.capabilities.web).toMatchObject({
+      provider: 'searxng',
+      enabled: true,
+      searchEnabled: true
+    })
+  })
+
+  it('writes GUI web fetch fallback settings into Kun config', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    const module = await import('./kun-process')
+
+    await module.syncGuiManagedKunConfig(tempRoot, {
+      ...defaultKunRuntimeSettings(),
+      webSearch: {
+        ...defaultKunRuntimeSettings().webSearch,
+        enabled: true,
+        fetchEnabled: true,
+        searchEnabled: true,
+        provider: 'searxng',
+        fetchProvider: 'jina-reader',
+        fetchFallbackEnabled: true,
+        fetchReaderBaseUrl: 'https://r.jina.ai/',
+        fetchApiKey: 'reader-key',
+        apiKey: '',
+        baseUrl: 'https://searxng.example.test/search',
+        allowDomains: [],
+        denyDomains: []
+      }
+    })
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
+    expect(parsed.capabilities.web).toMatchObject({
+      provider: 'searxng',
+      fetchProvider: 'jina-reader',
+      fetchFallbackEnabled: true,
+      fetchReaderBaseUrl: 'https://r.jina.ai/',
+      fetchApiKey: 'reader-key'
+    })
+  })
+
+  it('lets explicit GUI web search settings override a stale disabled web capability', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    writeFileSync(configPath, JSON.stringify({
+      capabilities: {
+        web: {
+          enabled: false,
+          fetchEnabled: false,
+          searchEnabled: false,
+          provider: 'fetch'
+        }
+      }
+    }), 'utf8')
+    const module = await import('./kun-process')
+
+    await module.syncGuiManagedKunConfig(tempRoot, {
+      ...defaultKunRuntimeSettings(),
+      webSearch: {
+        ...defaultKunRuntimeSettings().webSearch,
+        enabled: true,
+        fetchEnabled: true,
+        searchEnabled: true,
+        provider: 'searxng',
+        apiKey: '',
+        baseUrl: 'https://searxng.example.test/search',
+        allowDomains: [],
+        denyDomains: []
+      }
+    })
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
+    expect(parsed.capabilities.web).toMatchObject({
+      enabled: true,
+      fetchEnabled: true,
+      searchEnabled: true,
+      provider: 'searxng',
+      baseUrl: 'https://searxng.example.test/search'
+    })
+  })
 })

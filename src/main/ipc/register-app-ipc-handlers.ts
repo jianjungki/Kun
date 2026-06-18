@@ -89,8 +89,6 @@ import {
 import { copyWriteDocumentAsRichText, exportWriteDocument } from '../services/write-export-service'
 import { listGuiSkills } from '../services/skill-service'
 
-type GuiUpdaterModule = typeof import('../gui-updater')
-
 type WorkspaceFileWatchRecord = {
   watcher: FSWatcher
   sender: WebContents
@@ -122,7 +120,6 @@ type RegisterAppIpcHandlersOptions = {
   ) => Promise<SystemNotificationResult>
   getAppVersion: () => string
   readGuiUpdateState: () => Promise<GuiUpdateState>
-  loadGuiUpdaterModule: () => Promise<GuiUpdaterModule>
   resolveLogDirectory: () => string
   logError: (category: string, message: string, detail?: unknown) => void
 }
@@ -229,7 +226,6 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     showTurnCompleteNotification,
     getAppVersion,
     readGuiUpdateState,
-    loadGuiUpdaterModule,
     resolveLogDirectory,
     logError
   } = options
@@ -360,6 +356,24 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     const scheduleRuntime = getScheduleRuntime()
     if (!scheduleRuntime) return { ok: false, message: 'Schedule runtime is not initialized.' }
     return scheduleRuntime.runTask(normalizedTaskId)
+  })
+  ipcMain.handle('schedule:task:workspace:open', async (_, taskId: unknown) => {
+    const normalizedTaskId = parseIpcPayload('schedule:task:workspace:open', streamIdSchema, taskId)
+    const scheduleRuntime = getScheduleRuntime()
+    if (!scheduleRuntime) return { ok: false, message: 'Schedule runtime is not initialized.' }
+    return scheduleRuntime.openTaskWorkspace(normalizedTaskId)
+  })
+  ipcMain.handle('schedule:task:workspace:archive', async (_, taskId: unknown) => {
+    const normalizedTaskId = parseIpcPayload('schedule:task:workspace:archive', streamIdSchema, taskId)
+    const scheduleRuntime = getScheduleRuntime()
+    if (!scheduleRuntime) return { ok: false, message: 'Schedule runtime is not initialized.' }
+    return scheduleRuntime.archiveTaskWorkspace(normalizedTaskId)
+  })
+  ipcMain.handle('schedule:task:workspace:cleanup', async (_, taskId: unknown) => {
+    const normalizedTaskId = parseIpcPayload('schedule:task:workspace:cleanup', streamIdSchema, taskId)
+    const scheduleRuntime = getScheduleRuntime()
+    if (!scheduleRuntime) return { ok: false, message: 'Schedule runtime is not initialized.' }
+    return scheduleRuntime.cleanupTaskWorkspaceById(normalizedTaskId)
   })
 
   ipcMain.handle(
@@ -748,28 +762,39 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
   ipcMain.handle('app:version', async () => getAppVersion())
   ipcMain.handle('gui:update-state', async () => readGuiUpdateState())
   ipcMain.handle('gui:update-check', async (_, channel: unknown): Promise<GuiUpdateInfo> => {
-    const module = await loadGuiUpdaterModule()
-    return module.checkGuiUpdate(
-      parseIpcPayload(
-        'gui:update-check',
-        z.object({ channel: guiUpdateChannelSchema }).strict(),
-        { channel }
-      ).channel
+    const parsed = parseIpcPayload(
+      'gui:update-check',
+      z.object({ channel: guiUpdateChannelSchema }).strict(),
+      { channel }
     )
+    return {
+      ok: false,
+      currentVersion: getAppVersion(),
+      code: 'not_configured',
+      message: 'GUI OTA updates are disabled for this branch.',
+      channel: parsed.channel
+    }
   })
   ipcMain.handle('gui:update-download', async (_, channel: unknown): Promise<GuiUpdateDownloadResult> => {
-    const module = await loadGuiUpdaterModule()
-    return module.downloadGuiUpdate(
-      parseIpcPayload(
-        'gui:update-download',
-        z.object({ channel: guiUpdateChannelSchema }).strict(),
-        { channel }
-      ).channel
+    parseIpcPayload(
+      'gui:update-download',
+      z.object({ channel: guiUpdateChannelSchema }).strict(),
+      { channel }
     )
+    return {
+      ok: false,
+      currentVersion: getAppVersion(),
+      code: 'not_configured',
+      message: 'GUI OTA updates are disabled for this branch.'
+    }
   })
   ipcMain.handle('gui:update-install', async (): Promise<GuiUpdateInstallResult> => {
-    const module = await loadGuiUpdaterModule()
-    return module.installGuiUpdate()
+    return {
+      ok: false,
+      currentVersion: getAppVersion(),
+      code: 'install_failed',
+      message: 'GUI OTA updates are disabled for this branch.'
+    }
   })
 
   ipcMain.handle('log:error', async (_, payload: unknown) => {

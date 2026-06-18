@@ -95,6 +95,10 @@ function isPlainTextLanguage(language: string): boolean {
   return PLAIN_TEXT_LANGUAGES.has(language.trim().toLowerCase())
 }
 
+export function shouldRunCodeHighlight(mode: 'static' | 'streaming'): boolean {
+  return mode === 'static'
+}
+
 function PlainTextBlock({ code }: { code: string }): ReactNode {
   const trimmedCode = code.replace(TRAILING_NEWLINES_REGEX, '')
   if (!trimmedCode.trim()) return null
@@ -176,7 +180,7 @@ function CodeBlock({
   code: string
   language: string
 }): ReactNode {
-  const { isAnimating } = useContext(StreamdownContext)
+  const { isAnimating, mode } = useContext(StreamdownContext)
   const trimmedCode = useMemo(() => code.replace(TRAILING_NEWLINES_REGEX, ''), [code])
   const [html, setHtml] = useState(() => renderFallbackCodeHtml(trimmedCode))
   const [isCopied, setIsCopied] = useState(false)
@@ -189,6 +193,12 @@ function CodeBlock({
     let cancelled = false
     setHtml(renderFallbackCodeHtml(trimmedCode))
 
+    if (!shouldRunCodeHighlight(mode)) {
+      return () => {
+        cancelled = true
+      }
+    }
+
     void highlightCodeHtml(trimmedCode, language).then((nextHtml) => {
       if (!cancelled) setHtml(nextHtml)
     })
@@ -196,7 +206,7 @@ function CodeBlock({
     return () => {
       cancelled = true
     }
-  }, [trimmedCode, language])
+  }, [trimmedCode, language, mode])
 
   useEffect(() => {
     const el = bodyRef.current

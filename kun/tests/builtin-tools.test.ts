@@ -141,7 +141,8 @@ describe('Kun built-in tools', () => {
       }
     )
 
-    expect(seenInput?.questions[0]?.options).toEqual([
+    const submittedInput = seenInput as { questions: Array<{ options: Array<{ label: string; description: string }> }> } | null
+    expect(submittedInput?.questions[0]?.options).toEqual([
       { label: 'South', description: '' },
       { label: 'North', description: 'Cooler weather' }
     ])

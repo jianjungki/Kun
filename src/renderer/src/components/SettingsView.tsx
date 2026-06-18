@@ -35,7 +35,6 @@ import { normalizeWorkspaceRoot } from '../lib/workspace-path'
 import { useChatStore, type SettingsRouteSection } from '../store/chat-store'
 import { SettingsSidebar } from './SettingsSidebar'
 import { WriteDebugLogModal } from './settings-debug-log'
-import { useSettingsGuiUpdate } from './use-settings-gui-update'
 import {
   DEFAULT_WORKSPACE_ROOT,
   coerceRendererSettings,
@@ -126,25 +125,6 @@ export function SettingsView(): ReactElement {
   const formWorkspaceRoot = form?.workspaceRoot
   const formKun = form ? getKunRuntimeSettings(form) : null
   const formPort = formKun?.port
-  const formGuiUpdateChannel = form?.guiUpdate?.channel
-  const {
-    checkingGuiUpdate,
-    checkGuiUpdate,
-    downloadingGuiUpdate,
-    downloadGuiUpdate,
-    guiUpdateDownloaded,
-    guiUpdateError,
-    guiUpdateInfo,
-    guiUpdateProgress,
-    installingGuiUpdate,
-    installGuiUpdate,
-    resetGuiUpdateState
-  } = useSettingsGuiUpdate({
-    category,
-    channel: formGuiUpdateChannel,
-    form,
-    t
-  })
 
   useEffect(() => {
     let cancelled = false
@@ -581,9 +561,6 @@ export function SettingsView(): ReactElement {
     const next = mergeSettings(form, partial)
     setForm(next)
     if (partial.locale) void applyI18n(partial.locale)
-    if (partial.guiUpdate?.channel && partial.guiUpdate.channel !== form.guiUpdate.channel) {
-      resetGuiUpdateState()
-    }
     scheduleSave(next)
   }
 
@@ -727,16 +704,16 @@ export function SettingsView(): ReactElement {
     pickWorkspace,
     resetWorkspaceToDefault,
     workspacePickerError,
-    guiUpdateInfo,
-    checkingGuiUpdate,
-    downloadingGuiUpdate,
-    installingGuiUpdate,
-    guiUpdateDownloaded,
-    guiUpdateProgress,
-    guiUpdateError,
-    checkGuiUpdate,
-    downloadGuiUpdate,
-    installGuiUpdate,
+    guiUpdateInfo: null,
+    checkingGuiUpdate: false,
+    downloadingGuiUpdate: false,
+    installingGuiUpdate: false,
+    guiUpdateDownloaded: false,
+    guiUpdateProgress: null,
+    guiUpdateError: null,
+    checkGuiUpdate: async () => undefined,
+    downloadGuiUpdate: async () => undefined,
+    installGuiUpdate: async () => undefined,
     logPath,
     logDirOpenError,
     setLogDirOpenError,

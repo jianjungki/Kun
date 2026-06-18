@@ -17,6 +17,7 @@ import {
   type KunSettingsEnvelopeV1,
   type KunStorageSettingsV1,
   type KunTokenEconomySettingsV1,
+  type KunWebSearchSettingsV1,
   type ModelProviderSettingsV1,
   type ApprovalPolicy,
   type SandboxMode
@@ -106,9 +107,27 @@ export function defaultKunRuntimeSettings(
     tokenEconomy: defaultKunTokenEconomySettings(),
     insecure: false,
     mcpSearch: defaultKunMcpSearchSettings(),
+    webSearch: defaultKunWebSearchSettings(),
     storage: defaultKunStorageSettings(),
     contextCompaction: defaultKunContextCompactionSettings(),
     runtimeTuning: defaultKunRuntimeTuningSettings()
+  }
+}
+
+export function defaultKunWebSearchSettings(): KunWebSearchSettingsV1 {
+  return {
+    enabled: true,
+    fetchEnabled: true,
+    searchEnabled: false,
+    provider: 'fetch',
+    fetchProvider: 'direct',
+    fetchFallbackEnabled: false,
+    fetchReaderBaseUrl: '',
+    fetchApiKey: '',
+    apiKey: '',
+    baseUrl: '',
+    allowDomains: [],
+    denyDomains: []
   }
 }
 
@@ -203,6 +222,11 @@ export function mergeKunRuntimeSettings(
     ...currentMcpSearch,
     ...(patch?.mcpSearch ?? {})
   })
+  const currentWebSearch = normalizeKunWebSearchSettings(current.webSearch)
+  const nextWebSearch = normalizeKunWebSearchSettings({
+    ...currentWebSearch,
+    ...(patch?.webSearch ?? {})
+  })
   const currentTokenEconomy = normalizeKunTokenEconomySettings(
     current.tokenEconomy,
     current.tokenEconomyMode
@@ -256,10 +280,47 @@ export function mergeKunRuntimeSettings(
     tokenEconomyMode: nextTokenEconomy.enabled,
     tokenEconomy: nextTokenEconomy,
     mcpSearch: nextMcpSearch,
+    webSearch: nextWebSearch,
     storage: nextStorage,
     contextCompaction: nextContextCompaction,
     runtimeTuning: nextRuntimeTuning
   }
+}
+
+function normalizeKunWebSearchSettings(
+  input: Partial<KunWebSearchSettingsV1> | undefined
+): KunWebSearchSettingsV1 {
+  const defaults = defaultKunWebSearchSettings()
+  const provider = typeof input?.provider === 'string' && input.provider.trim()
+    ? normalizeKunWebSearchProvider(input.provider)
+    : defaults.provider
+  return {
+    enabled: input?.enabled !== false,
+    fetchEnabled: input?.fetchEnabled !== false,
+    searchEnabled: input?.searchEnabled === true || provider !== defaults.provider,
+    provider,
+    fetchProvider: normalizeKunWebFetchProvider(input?.fetchProvider),
+    fetchFallbackEnabled: input?.fetchFallbackEnabled === true,
+    fetchReaderBaseUrl: typeof input?.fetchReaderBaseUrl === 'string' ? input.fetchReaderBaseUrl.trim() : defaults.fetchReaderBaseUrl,
+    fetchApiKey: typeof input?.fetchApiKey === 'string' ? input.fetchApiKey : defaults.fetchApiKey,
+    apiKey: typeof input?.apiKey === 'string' ? input.apiKey : defaults.apiKey,
+    baseUrl: typeof input?.baseUrl === 'string' ? input.baseUrl.trim() : defaults.baseUrl,
+    allowDomains: normalizeStringList(input?.allowDomains),
+    denyDomains: normalizeStringList(input?.denyDomains)
+  }
+}
+
+function normalizeKunWebSearchProvider(value: string): string {
+  const provider = value.trim()
+  return provider === 'searchxng' ? 'searxng' : provider
+}
+
+function normalizeKunWebFetchProvider(value: unknown): string {
+  if (typeof value !== 'string') return 'direct'
+  const provider = value.trim()
+  return ['direct', 'jina-reader', 'firecrawl', 'browser-mcp'].includes(provider)
+    ? provider
+    : 'direct'
 }
 
 function normalizeKunTokenEconomySettings(
@@ -273,6 +334,13 @@ function normalizeKunTokenEconomySettings(
     conciseResponses: input?.conciseResponses !== false,
     historyHygiene: normalizeKunHistoryHygieneSettings(input?.historyHygiene)
   }
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    .map((item) => item.trim())
 }
 
 function normalizeKunHistoryHygieneSettings(
@@ -519,6 +587,7 @@ export function migrateLegacyAppSettings(parsed: LegacyAppSettingsShape): Partia
       explicitKun.tokenEconomyMode ?? kunDefaults.tokenEconomyMode
     ),
     mcpSearch: normalizeKunMcpSearchSettings(explicitKun.mcpSearch),
+    webSearch: normalizeKunWebSearchSettings(explicitKun.webSearch),
     storage: normalizeKunStorageSettings(explicitKun.storage),
     contextCompaction: normalizeKunContextCompactionSettings(explicitKun.contextCompaction),
     runtimeTuning: normalizeKunRuntimeTuningSettings(explicitKun.runtimeTuning)

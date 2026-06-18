@@ -42,6 +42,15 @@ import {
   type ThreadDetailJson,
   type ThreadRecordJson
 } from './schedule-runtime-helpers'
+import {
+  archiveTaskWorkspace as markTaskWorkspaceArchived,
+  cleanupTaskWorkspace,
+  loadTaskRules,
+  prepareTaskWorkspace,
+  removeGitTaskWorktree,
+  type TaskWorkspacePrepareResult
+} from './services/schedule-workspace-service'
+import { openPathWithShell } from './services/workspace-editors'
 
 export { computeScheduleNextRunAt } from './schedule-runtime-helpers'
 
@@ -88,6 +97,54 @@ export class ScheduleRuntime {
       runningTaskIds: [...this.runningTaskIds],
       powerSaveBlockerActive: this.isPowerSaveBlockerActive()
     }
+  }
+
+  async openTaskWorkspace(taskId: string): Promise<{ ok: boolean; message?: string; path?: string }> {
+    const settings = await this.deps.store.load()
+    const task = settings.schedule.tasks.find((item) => item.id === taskId)
+    if (!task) return { ok: false, message: 'Task not found.' }
+    const workspaceRoot = task.taskWorkspaceRoot?.trim() || task.workspaceRoot.trim()
+    if (!workspaceRoot) return { ok: false, message: 'Task workspace is not ready.' }
+    const result = await openPathWithShell(workspaceRoot)
+    return result.ok ? { ok: true, path: workspaceRoot } : { ok: false, message: result.message ?? 'Could not open path.' }
+  }
+
+  async archiveTaskWorkspace(taskId: string): Promise<{ ok: boolean; message?: string }> {
+    const settings = await this.deps.store.load()
+    const task = settings.schedule.tasks.find((item) => item.id === taskId)
+    if (!task) return { ok: false, message: 'Task not found.' }
+    const workspaceRoot = task.taskWorkspaceRoot?.trim()
+    if (!workspaceRoot) return { ok: false, message: 'Task workspace is not ready.' }
+    await markTaskWorkspaceArchived(workspaceRoot)
+    const now = new Date().toISOString()
+    await this.updateTask(taskId, (current) => ({
+      ...current,
+      taskWorkspaceState: 'archived',
+      taskWorkspaceArchivedAt: now,
+      updatedAt: now
+    }))
+    return { ok: true }
+  }
+
+  async cleanupTaskWorkspaceById(taskId: string): Promise<{ ok: boolean; message?: string }> {
+    const settings = await this.deps.store.load()
+    const task = settings.schedule.tasks.find((item) => item.id === taskId)
+    if (!task) return { ok: false, message: 'Task not found.' }
+    const workspaceRoot = task.taskWorkspaceRoot?.trim()
+    if (!workspaceRoot) return { ok: false, message: 'Task workspace is not ready.' }
+    if ((task.taskWorkspaceKind ?? 'workspace') === 'git-worktree') {
+      await removeGitTaskWorktree(task.taskWorkspaceRepoRoot?.trim() || task.workspaceRoot.trim() || this.resolveDefaultWorkspaceRoot(settings), workspaceRoot)
+    } else {
+      await cleanupTaskWorkspace(workspaceRoot)
+    }
+    const now = new Date().toISOString()
+    await this.updateTask(taskId, (current) => ({
+      ...current,
+      taskWorkspaceState: 'cleaned',
+      taskWorkspaceCleanedAt: now,
+      updatedAt: now
+    }))
+    return { ok: true }
   }
 
   async runTask(taskId: string): Promise<ScheduleRunResult> {
@@ -323,21 +380,43 @@ export class ScheduleRuntime {
       ...current,
       lastStatus: 'running',
       lastMessage: 'Running',
+      taskWorkspaceState: 'preparing',
       nextRunAt: '',
       updatedAt: new Date().toISOString()
     }))
 
     try {
       const settings = await this.deps.store.load()
+      const workspace = await this.prepareTaskWorkspace(task, settings)
+      const ruleLoad = await loadTaskRules(workspace.workspaceRoot)
+      await this.updateTask(task.id, (current) => ({
+        ...current,
+        taskWorkspaceRoot: workspace.workspaceRoot,
+        taskWorkspaceKind: workspace.kind,
+        taskWorkspaceRepoRoot: workspace.repoRoot,
+        taskWorkspaceRef: workspace.ref ?? current.taskWorkspaceRef,
+        taskWorkspacePreparedAt: new Date().toISOString(),
+        taskWorkspaceState: 'ready',
+        taskWorkspaceError: '',
+        taskRuleSources: ruleLoad.sources,
+        taskRuleSummary: ruleLoad.text.slice(0, 8_000),
+        updatedAt: new Date().toISOString()
+      }))
       const result = await this.runPrompt(settings, {
         prompt: task.prompt,
         title: scheduledThreadTitle(task.title),
-        workspaceRoot: task.workspaceRoot || this.resolveDefaultWorkspaceRoot(settings),
+        workspaceRoot: workspace.workspaceRoot,
         model: task.model,
         reasoningEffort: task.reasoningEffort,
         mode: task.mode,
         waitForResult: false,
-        responseTimeoutMs: TASK_RESPONSE_TIMEOUT_MS
+        responseTimeoutMs: TASK_RESPONSE_TIMEOUT_MS,
+        ruleText: ruleLoad.text,
+        ruleSources: ruleLoad.sources,
+        taskWorkspaceKind: workspace.kind,
+        taskWorkspaceRoot: workspace.workspaceRoot,
+        taskFocusRoot: task.workspaceRoot,
+        taskFocusDisplayRoot: workspace.sourceRoot
       })
       if (!result.ok) {
         const finishedAt = new Date()
@@ -348,6 +427,8 @@ export class ScheduleRuntime {
           nextRunAt: current.schedule.kind === 'at' ? '' : computeScheduleNextRunAt(current, finishedAt),
           lastStatus: 'error',
           lastMessage: result.message,
+          taskWorkspaceState: 'error',
+          taskWorkspaceError: result.message,
           updatedAt: finishedAt.toISOString()
         }))
         this.runningTaskIds.delete(task.id)
@@ -362,6 +443,7 @@ export class ScheduleRuntime {
         lastStatus: 'running',
         lastMessage: result.message ?? 'Started',
         lastThreadId: result.threadId,
+        taskWorkspaceState: 'running',
         updatedAt: startedAt.toISOString()
       }))
       void this.monitorTaskTurn(task.id, result.threadId, result.turnId ?? '')
@@ -375,6 +457,8 @@ export class ScheduleRuntime {
         nextRunAt: computeScheduleNextRunAt(current, finishedAt),
         lastStatus: 'error',
         lastMessage: message,
+        taskWorkspaceState: 'error',
+        taskWorkspaceError: message,
         updatedAt: finishedAt.toISOString()
       }))
       this.runningTaskIds.delete(task.id)
@@ -401,6 +485,7 @@ export class ScheduleRuntime {
         lastStatus: 'success',
         lastMessage: summarizeTaskResult(text),
         lastThreadId: threadId,
+        taskWorkspaceState: current.taskWorkspaceState === 'archived' ? 'archived' : 'running',
         updatedAt: finishedAt.toISOString()
       }))
     } catch (error) {
@@ -413,6 +498,8 @@ export class ScheduleRuntime {
         lastStatus: 'error',
         lastMessage: message,
         lastThreadId: threadId || current.lastThreadId,
+        taskWorkspaceState: 'error',
+        taskWorkspaceError: message,
         updatedAt: finishedAt.toISOString()
       }))
       this.deps.logError('schedule-task', 'Scheduled task failed', { message, taskId, threadId })
@@ -440,7 +527,12 @@ export class ScheduleRuntime {
     const thread = JSON.parse(create.body) as ThreadRecordJson
 
     const turnBody: Record<string, unknown> = {
-      prompt: buildScheduleRuntimePrompt(settings, options.prompt),
+      prompt: buildScheduleRuntimePrompt(settings, options.prompt, {
+        taskWorkspaceRoot: options.taskWorkspaceRoot,
+        taskWorkspaceKind: options.taskWorkspaceKind,
+        ruleText: options.ruleText,
+        ruleSources: options.ruleSources
+      }),
       mode: options.mode
     }
     if (model) turnBody.model = model
@@ -465,6 +557,17 @@ export class ScheduleRuntime {
 
     const text = await this.waitForAssistantText(settings, thread.id, turnId, options.responseTimeoutMs, workspace)
     return { ok: true, threadId: thread.id, turnId, text, message: text || 'Completed' }
+  }
+
+  private async prepareTaskWorkspace(task: ScheduledTaskV1, settings: AppSettingsV1): Promise<TaskWorkspacePrepareResult> {
+    const existingWorkspaceRoot = task.taskWorkspaceRoot?.trim()
+    const workspaceRoot = task.workspaceRoot.trim() || this.resolveDefaultWorkspaceRoot(settings)
+    const prepared = await prepareTaskWorkspace({
+      workspaceRoot,
+      taskId: task.id,
+      existingWorkspaceRoot
+    })
+    return prepared
   }
 
   private async waitForAssistantText(

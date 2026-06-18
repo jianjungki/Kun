@@ -29,6 +29,50 @@ export function normalizeScheduledTask(
     enabled: normalizeBoolean(task.enabled, true),
     prompt: typeof task.prompt === 'string' ? task.prompt : '',
     workspaceRoot: typeof task.workspaceRoot === 'string' ? task.workspaceRoot.trim() : '',
+    ...(typeof task.taskWorkspaceSourceRoot === 'string' && task.taskWorkspaceSourceRoot.trim()
+      ? { taskWorkspaceSourceRoot: task.taskWorkspaceSourceRoot.trim() }
+      : {}),
+    ...(typeof task.taskWorkspaceRoot === 'string' && task.taskWorkspaceRoot.trim()
+      ? { taskWorkspaceRoot: task.taskWorkspaceRoot.trim() }
+      : {}),
+    ...(task.taskWorkspaceKind === 'git-worktree' || task.taskWorkspaceKind === 'snapshot' || task.taskWorkspaceKind === 'workspace'
+      ? { taskWorkspaceKind: task.taskWorkspaceKind }
+      : {}),
+    ...(task.taskWorkspaceState === 'idle' ||
+      task.taskWorkspaceState === 'preparing' ||
+      task.taskWorkspaceState === 'ready' ||
+      task.taskWorkspaceState === 'running' ||
+      task.taskWorkspaceState === 'archived' ||
+      task.taskWorkspaceState === 'cleaned' ||
+      task.taskWorkspaceState === 'error'
+      ? { taskWorkspaceState: task.taskWorkspaceState }
+      : {}),
+    ...(typeof task.taskWorkspaceRepoRoot === 'string' && task.taskWorkspaceRepoRoot.trim()
+      ? { taskWorkspaceRepoRoot: task.taskWorkspaceRepoRoot.trim() }
+      : {}),
+    ...(typeof task.taskWorkspaceRef === 'string' && task.taskWorkspaceRef.trim()
+      ? { taskWorkspaceRef: task.taskWorkspaceRef.trim() }
+      : {}),
+    ...(typeof task.taskWorkspacePreparedAt === 'string' && task.taskWorkspacePreparedAt.trim()
+      ? { taskWorkspacePreparedAt: task.taskWorkspacePreparedAt.trim() }
+      : {}),
+    ...(typeof task.taskWorkspaceArchivedAt === 'string' && task.taskWorkspaceArchivedAt.trim()
+      ? { taskWorkspaceArchivedAt: task.taskWorkspaceArchivedAt.trim() }
+      : {}),
+    ...(typeof task.taskWorkspaceCleanedAt === 'string' && task.taskWorkspaceCleanedAt.trim()
+      ? { taskWorkspaceCleanedAt: task.taskWorkspaceCleanedAt.trim() }
+      : {}),
+    ...(typeof task.taskWorkspaceError === 'string' && task.taskWorkspaceError.trim()
+      ? { taskWorkspaceError: task.taskWorkspaceError.trim() }
+      : {}),
+    ...(Array.isArray(task.taskRuleSources) ? { taskRuleSources: task.taskRuleSources.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) } : {}),
+    ...(typeof task.taskRuleSummary === 'string' && task.taskRuleSummary.trim()
+      ? { taskRuleSummary: task.taskRuleSummary.trim() }
+      : {}),
+    ...(Array.isArray(task.taskActiveSkillIds) ? { taskActiveSkillIds: task.taskActiveSkillIds.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) } : {}),
+    ...(typeof task.taskSkillInjectionBytes === 'number' && Number.isFinite(task.taskSkillInjectionBytes)
+      ? { taskSkillInjectionBytes: Math.max(0, Math.floor(task.taskSkillInjectionBytes)) }
+      : {}),
     model: typeof task.model === 'string' && task.model.trim() ? task.model.trim() : DEFAULT_SCHEDULE_MODEL,
     reasoningEffort: normalizeScheduleReasoningEffort(task.reasoningEffort),
     mode: normalizeRunMode(task.mode),

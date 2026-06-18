@@ -9,10 +9,8 @@ import {
   WRITE_INLINE_COMPLETION_MODEL_IDS,
   isKunRuntimeInsecure
 } from '@shared/app-settings'
-import type { GuiUpdateChannel } from '@shared/gui-update'
 import type { SkillRootId } from '../lib/skill-root-preference'
 import { FolderOpen, Loader2, PencilLine, RefreshCw, Settings } from 'lucide-react'
-import { GuiUpdateControl } from './settings-gui-update'
 import {
   InlineNoticeView,
   SecretInput,
@@ -44,16 +42,6 @@ export function WriteSettingsSection({ ctx }: { ctx: Record<string, any> }): Rea
     pickWorkspace,
     resetWorkspaceToDefault,
     workspacePickerError,
-    guiUpdateInfo,
-    checkingGuiUpdate,
-    downloadingGuiUpdate,
-    installingGuiUpdate,
-    guiUpdateDownloaded,
-    guiUpdateProgress,
-    guiUpdateError,
-    checkGuiUpdate,
-    downloadGuiUpdate,
-    installGuiUpdate,
     logPath,
     logDirOpenError,
     setLogDirOpenError,

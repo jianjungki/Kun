@@ -97,6 +97,8 @@ export type KunRuntimeSettingsV1 = {
   insecure: boolean
   /** GUI-managed MCP progressive discovery/search settings written into Kun config.json. */
   mcpSearch: KunMcpSearchSettingsV1
+  /** GUI-managed web fetch/search settings written into Kun config.json. */
+  webSearch: KunWebSearchSettingsV1
   /** Persistent store backend used by Kun. */
   storage: KunStorageSettingsV1
   /** Fallback compaction thresholds and summary behavior. Per-model thresholds live in Kun config models.profiles. */
@@ -114,6 +116,21 @@ export type KunMcpSearchSettingsV1 = {
   topKDefault: number
   topKMax: number
   minScore: number
+}
+
+export type KunWebSearchSettingsV1 = {
+  enabled: boolean
+  fetchEnabled: boolean
+  searchEnabled: boolean
+  provider: string
+  fetchProvider: string
+  fetchFallbackEnabled: boolean
+  fetchReaderBaseUrl: string
+  fetchApiKey: string
+  apiKey: string
+  baseUrl: string
+  allowDomains: string[]
+  denyDomains: string[]
 }
 
 export type KunStorageBackend = 'hybrid' | 'file'
@@ -192,10 +209,11 @@ export type KunTokenEconomySettingsPatchV1 = Partial<
 export type KunRuntimeSettingsPatchV1 = Partial<
   Omit<
     KunRuntimeSettingsV1,
-    'mcpSearch' | 'storage' | 'contextCompaction' | 'runtimeTuning' | 'tokenEconomy'
+    'mcpSearch' | 'webSearch' | 'storage' | 'contextCompaction' | 'runtimeTuning' | 'tokenEconomy'
   >
 > & {
   mcpSearch?: Partial<KunMcpSearchSettingsV1>
+  webSearch?: Partial<KunWebSearchSettingsV1>
   tokenEconomy?: KunTokenEconomySettingsPatchV1
   storage?: Partial<KunStorageSettingsV1>
   contextCompaction?: Partial<KunContextCompactionSettingsV1>
@@ -233,12 +251,29 @@ export type ScheduledTaskScheduleV1 = {
   atTime: string
 }
 
+export type ScheduleTaskWorkspaceKindV1 = 'git-worktree' | 'snapshot' | 'workspace'
+export type ScheduleTaskWorkspaceStateV1 = 'idle' | 'preparing' | 'ready' | 'running' | 'archived' | 'cleaned' | 'error'
+
 export type ScheduledTaskV1 = {
   id: string
   title: string
   enabled: boolean
   prompt: string
   workspaceRoot: string
+  taskWorkspaceSourceRoot?: string
+  taskWorkspaceRoot?: string
+  taskWorkspaceKind?: ScheduleTaskWorkspaceKindV1
+  taskWorkspaceState?: ScheduleTaskWorkspaceStateV1
+  taskWorkspaceRepoRoot?: string
+  taskWorkspaceRef?: string
+  taskWorkspacePreparedAt?: string
+  taskWorkspaceArchivedAt?: string
+  taskWorkspaceCleanedAt?: string
+  taskWorkspaceError?: string
+  taskRuleSources?: string[]
+  taskRuleSummary?: string
+  taskActiveSkillIds?: string[]
+  taskSkillInjectionBytes?: number
   model: string
   reasoningEffort: ScheduleReasoningEffort
   mode: ScheduleRunMode
@@ -434,6 +469,10 @@ export type ScheduleTaskFromTextResult =
   | { kind: 'error'; message: string }
 
 export type ClawTaskFromTextResult = ScheduleTaskFromTextResult
+
+export type ScheduleTaskWorkspaceActionResult =
+  | { ok: true; task: ScheduledTaskV1 }
+  | { ok: false; message: string }
 
 export type ClawRuntimeStatus = {
   imServerRunning: boolean

@@ -283,7 +283,7 @@ export async function syncGuiManagedKunConfig(
   dataDir: string,
   runtime: Pick<
     KunRuntimeSettingsV1,
-    'mcpSearch' | 'tokenEconomy' | 'storage' | 'contextCompaction' | 'runtimeTuning'
+    'mcpSearch' | 'webSearch' | 'tokenEconomy' | 'storage' | 'contextCompaction' | 'runtimeTuning'
   >,
   options?: {
     scheduleMcp?: {
@@ -315,6 +315,30 @@ export async function syncGuiManagedKunConfig(
   const skills = objectValue(capabilities.skills)
   const storage = storageConfigForRuntime(runtime.storage)
   const mcpSearch = runtime.mcpSearch
+  const webSearch = runtime.webSearch
+  const existingWebProvider = scalarStringValue(web.provider)
+  const webBase = { ...web }
+  delete (webBase as { apiKey?: unknown }).apiKey
+  delete (webBase as { baseUrl?: unknown }).baseUrl
+  delete (webBase as { fetchApiKey?: unknown }).fetchApiKey
+  delete (webBase as { fetchReaderBaseUrl?: unknown }).fetchReaderBaseUrl
+  const webSearchEnabled = webSearch.searchEnabled || webSearch.provider !== 'fetch'
+  const webSearchUsesDefaultSettings = webSearch.provider === 'fetch' &&
+    webSearch.enabled === true &&
+    webSearch.fetchEnabled === true &&
+    !webSearchEnabled &&
+    webSearch.fetchProvider === 'direct' &&
+    webSearch.fetchFallbackEnabled === false &&
+    !webSearch.fetchApiKey.trim() &&
+    !webSearch.fetchReaderBaseUrl.trim() &&
+    !webSearch.apiKey.trim() &&
+    !webSearch.baseUrl.trim() &&
+    webSearch.allowDomains.length === 0 &&
+    webSearch.denyDomains.length === 0
+  const webSearchUsesDefaultProvider = webSearch.provider === 'fetch' &&
+    !webSearchEnabled &&
+    !webSearch.apiKey.trim() &&
+    !webSearch.baseUrl.trim()
   const skillCapability = await skillCapabilityConfigForRuntime(skills, options?.scheduleMcp?.settings)
   const next = {
     serve: {
@@ -332,9 +356,19 @@ export async function syncGuiManagedKunConfig(
         enabled: attachments.enabled === false ? false : true
       },
       web: {
-        ...web,
-        enabled: web.enabled === false ? false : true,
-        fetchEnabled: web.fetchEnabled === false ? false : true
+        ...webBase,
+        enabled: webSearch.enabled === false ? false : webSearchUsesDefaultSettings && web.enabled === false ? false : true,
+        fetchEnabled: webSearch.fetchEnabled === false ? false : webSearchUsesDefaultSettings && web.fetchEnabled === false ? false : true,
+        searchEnabled: webSearchEnabled || web.searchEnabled === true,
+        provider: webSearchUsesDefaultProvider && existingWebProvider ? existingWebProvider : webSearch.provider,
+        fetchProvider: webSearch.fetchProvider,
+        fetchFallbackEnabled: webSearch.fetchFallbackEnabled,
+        ...(webSearch.fetchApiKey.trim() ? { fetchApiKey: webSearch.fetchApiKey } : {}),
+        ...(webSearch.fetchReaderBaseUrl.trim() ? { fetchReaderBaseUrl: webSearch.fetchReaderBaseUrl } : {}),
+        ...(webSearch.apiKey.trim() ? { apiKey: webSearch.apiKey } : {}),
+        ...(webSearch.baseUrl.trim() ? { baseUrl: webSearch.baseUrl } : {}),
+        allowDomains: webSearch.allowDomains,
+        denyDomains: webSearch.denyDomains
       },
       skills: skillCapability,
       mcp: {

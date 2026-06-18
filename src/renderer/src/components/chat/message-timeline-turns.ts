@@ -23,6 +23,16 @@ export function groupTurns(blocks: ChatBlock[]): Turn[] {
   return turns
 }
 
+export function groupTurnsWithReuse(blocks: ChatBlock[], previousTurns: Turn[] = []): Turn[] {
+  const nextTurns = groupTurns(blocks)
+  if (previousTurns.length === 0) return nextTurns
+
+  return nextTurns.map((turn, index) => {
+    const previous = previousTurns[index]
+    return previous && sameTurnContent(previous, turn) ? previous : turn
+  })
+}
+
 export function stableTurnKey(turn: Turn, fallbackIndex: number): string {
   return turn.user?.id ?? turn.blocks[0]?.id ?? `turn-${fallbackIndex}`
 }

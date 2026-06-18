@@ -38,6 +38,8 @@ export type TurnRecordJson = {
   status?: string
   error?: string | null
   items?: TurnItemJson[]
+  activeSkillIds?: string[]
+  skillInjectionBytes?: number
 }
 
 export type TurnItemJson = {
@@ -60,11 +62,18 @@ export type RunPromptOptions = {
   prompt: string
   title: string
   workspaceRoot: string
+  sourceWorkspaceRoot?: string
   model: string
   reasoningEffort: ScheduleReasoningEffort
   mode: ScheduleRunMode
   waitForResult: boolean
   responseTimeoutMs: number
+  ruleText?: string
+  ruleSources?: string[]
+  taskWorkspaceKind?: string
+  taskWorkspaceRoot?: string
+  taskFocusRoot?: string
+  taskFocusDisplayRoot?: string
 }
 
 export const SCHEDULER_INTERVAL_MS = 30_000

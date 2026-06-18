@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatBlock } from '../../agent/types'
-import { groupTurns, sameTurnContent, stableTurnKey } from './message-timeline-turns'
+import { groupTurns, groupTurnsWithReuse, sameTurnContent, stableTurnKey } from './message-timeline-turns'
 
 describe('message timeline turns', () => {
   it('uses stable ids for user and assistant-only turns', () => {
@@ -40,5 +40,20 @@ describe('message timeline turns', () => {
     ]
 
     expect(sameTurnContent(groupTurns(firstBlocks)[0], groupTurns(nextBlocks)[0])).toBe(false)
+  })
+
+  it('reuses unchanged turn objects while replacing only updated turns', () => {
+    const user1: ChatBlock = { kind: 'user', id: 'user_1', text: 'Hello' }
+    const assistant1: ChatBlock = { kind: 'assistant', id: 'assistant_1', text: 'Hi' }
+    const user2: ChatBlock = { kind: 'user', id: 'user_2', text: 'Next' }
+    const assistant2: ChatBlock = { kind: 'assistant', id: 'assistant_2', text: 'Working' }
+    const first = groupTurns([user1, assistant1, user2, assistant2])
+    const nextAssistant2: ChatBlock = { kind: 'assistant', id: 'assistant_2', text: 'Done' }
+
+    const next = groupTurnsWithReuse([user1, assistant1, user2, nextAssistant2], first)
+
+    expect(next[0]).toBe(first[0])
+    expect(next[1]).not.toBe(first[1])
+    expect(next[1]?.blocks[0]).toBe(nextAssistant2)
   })
 })

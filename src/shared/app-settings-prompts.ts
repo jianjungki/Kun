@@ -188,7 +188,15 @@ export function buildClawRuntimePrompt(
 
 export function buildScheduleRuntimePrompt(
   settings: Pick<AppSettingsV1, 'schedule'>,
-  prompt: string
+  prompt: string,
+  options: {
+    taskWorkspaceRoot?: string
+    taskWorkspaceKind?: string
+    ruleText?: string
+    ruleSources?: string[]
+    skillIds?: string[]
+    skillInjectionBytes?: number
+  } = {}
 ): string {
   const schedule = settings.schedule
   const instructions: string[] = []
@@ -200,6 +208,22 @@ export function buildScheduleRuntimePrompt(
   }
   const prefix = schedule.promptPrefix.trim()
   if (prefix) instructions.push(prefix)
+  if (options.taskWorkspaceRoot?.trim()) {
+    const lines = [
+      `Task workspace root: ${options.taskWorkspaceRoot.trim()}`,
+      ...(options.taskWorkspaceKind?.trim() ? [`Workspace kind: ${options.taskWorkspaceKind.trim()}`] : [])
+    ]
+    instructions.push(lines.join('\n'))
+  }
+  if (options.ruleSources?.length) {
+    instructions.push(`AGENTS.md sources:\n${options.ruleSources.map((source) => `- ${source}`).join('\n')}`)
+  }
+  if (options.ruleText?.trim()) {
+    instructions.push(`AGENTS.md rules:\n${options.ruleText.trim()}`)
+  }
+  if (options.skillIds?.length) {
+    instructions.push(`Active skill hints: ${options.skillIds.join(', ')}${typeof options.skillInjectionBytes === 'number' ? ` (${options.skillInjectionBytes} bytes)` : ''}.`)
+  }
   if (instructions.length === 0) return prompt
   return `${SCHEDULE_MANAGED_INSTRUCTIONS_HEADING}\n\n${instructions.join('\n\n')}\n\n---\n${SCHEDULE_CURRENT_USER_REQUEST_HEADING}\n${prompt}`
 }

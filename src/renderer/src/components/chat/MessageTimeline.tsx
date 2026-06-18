@@ -12,7 +12,7 @@ import { ReviewPlanCard, ReviewSummaryCard, TurnChangeSummary, WorkMetaRow } fro
 import { ProcessSectionRow, groupProcessSections } from './message-timeline-process'
 import { AnimatedWorkLogo } from './AnimatedWorkLogo'
 import {
-  groupTurns,
+  groupTurnsWithReuse,
   sameTurnContent,
   splitThink,
   stableTurnKey,
@@ -102,7 +102,12 @@ export function MessageTimeline({
   const endRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const turns = useMemo(() => groupTurns(blocks), [blocks])
+  const previousTurnsRef = useRef<Turn[]>([])
+  const turns = useMemo(() => {
+    const nextTurns = groupTurnsWithReuse(blocks, previousTurnsRef.current)
+    previousTurnsRef.current = nextTurns
+    return nextTurns
+  }, [blocks])
   const latestBlock = blocks[blocks.length - 1]
   const scrollContentKey = [
     activeThreadId ?? '',

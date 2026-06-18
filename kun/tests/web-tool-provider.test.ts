@@ -186,6 +186,216 @@ describe('Web tool provider', () => {
     }
   })
 
+  it('fetches pages with browser-like request headers', async () => {
+    vi.stubGlobal('fetch', async (_input: string | URL, init?: RequestInit) => {
+      expect(init?.headers).toMatchObject({
+        Accept: expect.stringContaining('text/html'),
+        'Accept-Language': expect.stringContaining('zh-CN'),
+        Referer: 'https://docs.example.test/',
+        'User-Agent': expect.stringContaining('Mozilla/5.0')
+      })
+      return new Response('Readable page', {
+        headers: {
+          'content-type': 'text/plain'
+        }
+      })
+    })
+    const config = KunCapabilitiesConfig.parse({
+      web: {
+        enabled: true,
+        fetchEnabled: true
+      }
+    })
+    const host = new LocalToolHost({
+      registry: new CapabilityRegistry(buildWebToolProviders(config.web).providers)
+    })
+
+    const result = await host.execute({
+      callId: 'call_1',
+      toolName: 'web_fetch',
+      arguments: { url: 'https://docs.example.test/page' }
+    }, buildContext())
+
+    expect(result.item).toMatchObject({ kind: 'tool_result', isError: false })
+  })
+
+  it('explains target-site fetch denials with a fallback hint', async () => {
+    vi.stubGlobal('fetch', async () => new Response('Forbidden', { status: 403 }))
+    const config = KunCapabilitiesConfig.parse({
+      web: {
+        enabled: true,
+        fetchEnabled: true
+      }
+    })
+    const host = new LocalToolHost({
+      registry: new CapabilityRegistry(buildWebToolProviders(config.web).providers)
+    })
+
+    const result = await host.execute({
+      callId: 'call_1',
+      toolName: 'web_fetch',
+      arguments: { url: 'https://blocked.example.test/page' }
+    }, buildContext())
+
+    expect(result.item).toMatchObject({ kind: 'tool_result', isError: true })
+    if (result.item.kind === 'tool_result') {
+      expect(result.item.output).toMatchObject({
+        error: {
+          code: 'fetch_failed',
+          message: expect.stringContaining('target site rejected direct HTTP fetching')
+        }
+      })
+    }
+  })
+
+  it('uses Jina Reader before direct fetch when configured as the page reader', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      const url = String(input)
+      calls.push(url)
+      expect(url).toBe('https://r.jina.ai/https://blocked.example.test/page')
+      return new Response('Reader content', {
+        headers: { 'content-type': 'text/plain' }
+      })
+    })
+    const config = KunCapabilitiesConfig.parse({
+      web: {
+        enabled: true,
+        fetchEnabled: true,
+        fetchProvider: 'jina-reader',
+        fetchFallbackEnabled: true,
+        fetchReaderBaseUrl: 'https://r.jina.ai/'
+      }
+    })
+    const host = new LocalToolHost({
+      registry: new CapabilityRegistry(buildWebToolProviders(config.web).providers)
+    })
+
+    const result = await host.execute({
+      callId: 'call_1',
+      toolName: 'web_fetch',
+      arguments: { url: 'https://blocked.example.test/page' }
+    }, buildContext())
+
+    expect(calls).toEqual([
+      'https://r.jina.ai/https://blocked.example.test/page'
+    ])
+    expect(result.item).toMatchObject({ kind: 'tool_result', isError: false })
+    if (result.item.kind === 'tool_result') {
+      expect(result.item.output).toMatchObject({
+        finalUrl: 'https://blocked.example.test/page',
+        text: 'Reader content',
+        telemetry: {
+          provider: 'jina-reader+fetch'
+        }
+      })
+    }
+  })
+
+  it('backs off to direct fetch when Jina Reader fails', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      const url = String(input)
+      calls.push(url)
+      if (url === 'https://r.jina.ai/https://docs.example.test/page') {
+        return new Response('Reader unavailable', { status: 403 })
+      }
+      expect(url).toBe('https://docs.example.test/page')
+      return new Response('Direct content', {
+        headers: { 'content-type': 'text/plain' }
+      })
+    })
+    const config = KunCapabilitiesConfig.parse({
+      web: {
+        enabled: true,
+        fetchEnabled: true,
+        fetchProvider: 'jina-reader',
+        fetchFallbackEnabled: true,
+        fetchReaderBaseUrl: 'https://r.jina.ai/'
+      }
+    })
+    const host = new LocalToolHost({
+      registry: new CapabilityRegistry(buildWebToolProviders(config.web).providers)
+    })
+
+    const result = await host.execute({
+      callId: 'call_1',
+      toolName: 'web_fetch',
+      arguments: { url: 'https://docs.example.test/page' }
+    }, buildContext())
+
+    expect(calls).toEqual([
+      'https://r.jina.ai/https://docs.example.test/page',
+      'https://docs.example.test/page'
+    ])
+    expect(result.item).toMatchObject({ kind: 'tool_result', isError: false })
+    if (result.item.kind === 'tool_result') {
+      expect(result.item.output).toMatchObject({
+        text: 'Direct content',
+        telemetry: {
+          provider: 'jina-reader+fetch'
+        }
+      })
+    }
+  })
+
+  it('uses Firecrawl before direct fetch when configured as the page reader', async () => {
+    vi.stubGlobal('fetch', async (input: string | URL, init?: RequestInit) => {
+      const url = String(input)
+      expect(url).toBe('https://api.firecrawl.dev/v1/scrape')
+      expect(init?.method).toBe('POST')
+      expect(init?.headers).toMatchObject({
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer fire-key'
+      })
+      expect(JSON.parse(String(init?.body))).toMatchObject({
+        url: 'https://blocked.example.test/page',
+        formats: ['markdown']
+      })
+      return new Response(JSON.stringify({
+        data: {
+          markdown: 'Firecrawl content',
+          metadata: {
+            title: 'Firecrawl Page',
+            sourceURL: 'https://blocked.example.test/page'
+          }
+        }
+      }), {
+        headers: { 'content-type': 'application/json' }
+      })
+    })
+    const config = KunCapabilitiesConfig.parse({
+      web: {
+        enabled: true,
+        fetchEnabled: true,
+        fetchProvider: 'firecrawl',
+        fetchFallbackEnabled: true,
+        fetchApiKey: 'fire-key'
+      }
+    })
+    const host = new LocalToolHost({
+      registry: new CapabilityRegistry(buildWebToolProviders(config.web).providers)
+    })
+
+    const result = await host.execute({
+      callId: 'call_1',
+      toolName: 'web_fetch',
+      arguments: { url: 'https://blocked.example.test/page' }
+    }, buildContext())
+
+    expect(result.item).toMatchObject({ kind: 'tool_result', isError: false })
+    if (result.item.kind === 'tool_result') {
+      expect(result.item.output).toMatchObject({
+        title: 'Firecrawl Page',
+        text: 'Firecrawl content',
+        telemetry: {
+          provider: 'firecrawl+fetch'
+        }
+      })
+    }
+  })
+
   it('rejects disallowed fetch URLs before contacting the provider', async () => {
     let contacted = false
     const config = KunCapabilitiesConfig.parse({
@@ -295,6 +505,346 @@ describe('Web tool provider', () => {
         provider: 'test-search'
       })
     }
+  })
+
+  it('searches through Brave Search when API key is configured', async () => {
+    vi.stubGlobal('fetch', async (input: string | URL, init?: RequestInit) => {
+      expect(String(input)).toContain('q=kun+web')
+      expect(init?.headers).toMatchObject({
+        Accept: 'application/json',
+        'X-Subscription-Token': 'brave-key'
+      })
+      return new Response(JSON.stringify({
+        web: {
+          results: [
+            {
+              url: 'https://docs.example.test/brave',
+              title: 'Brave Result',
+              description: 'Search result from Brave.'
+            }
+          ]
+        }
+      }), {
+        headers: { 'content-type': 'application/json' }
+      })
+    })
+    const config = KunCapabilitiesConfig.parse({
+      web: {
+        enabled: true,
+        searchEnabled: true,
+        provider: 'brave-search',
+        apiKey: 'brave-key'
+      }
+    })
+    const host = new LocalToolHost({
+      registry: new CapabilityRegistry(buildWebToolProviders(config.web).providers)
+    })
+
+    const result = await host.execute({
+      callId: 'call_1',
+      toolName: 'web_search',
+      arguments: { query: 'kun web', limit: 3 }
+    }, buildContext())
+
+    expect(result.item).toMatchObject({ kind: 'tool_result', isError: false })
+    if (result.item.kind === 'tool_result') {
+      expect(result.item.output).toMatchObject({
+        provider: 'brave-search',
+        results: [
+          {
+            url: 'https://docs.example.test/brave',
+            title: 'Brave Result',
+            snippet: 'Search result from Brave.',
+            provider: 'brave-search',
+            rank: 1
+          }
+        ]
+      })
+    }
+  })
+
+  it('keeps built-in fetch available when Brave Search is configured', async () => {
+    vi.stubGlobal('fetch', async (input: string | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('api.search.brave.com')) {
+        expect(init?.headers).toMatchObject({
+          Accept: 'application/json',
+          'X-Subscription-Token': 'brave-key'
+        })
+        return new Response(JSON.stringify({
+          web: {
+            results: [
+              {
+                url: 'https://docs.example.test/brave',
+                title: 'Brave Result',
+                description: 'Search result from Brave.'
+              }
+            ]
+          }
+        }), {
+          headers: { 'content-type': 'application/json' }
+        })
+      }
+      return new Response('<title>Fetched Page</title><p>Fetched content</p>', {
+        headers: { 'content-type': 'text/html' }
+      })
+    })
+    const config = KunCapabilitiesConfig.parse({
+      web: {
+        enabled: true,
+        fetchEnabled: true,
+        searchEnabled: true,
+        provider: 'brave-search',
+        apiKey: 'brave-key'
+      }
+    })
+    const built = buildWebToolProviders(config.web)
+    const host = new LocalToolHost({
+      registry: new CapabilityRegistry(built.providers)
+    })
+
+    expect(built.fetchAvailable).toBe(true)
+    expect(built.searchAvailable).toBe(true)
+    await expect(host.listTools(buildContext())).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'web_fetch' }),
+        expect.objectContaining({ name: 'web_search' })
+      ])
+    )
+
+    const fetchResult = await host.execute({
+      callId: 'call_1',
+      toolName: 'web_fetch',
+      arguments: { url: 'https://docs.example.test/page' }
+    }, buildContext())
+    const searchResult = await host.execute({
+      callId: 'call_2',
+      toolName: 'web_search',
+      arguments: { query: 'kun web' }
+    }, buildContext())
+
+    expect(fetchResult.item).toMatchObject({ kind: 'tool_result', isError: false })
+    if (fetchResult.item.kind === 'tool_result') {
+      expect(fetchResult.item.output).toMatchObject({
+        title: 'Fetched Page',
+        text: 'Fetched Page Fetched content',
+        telemetry: {
+          provider: 'brave-search'
+        }
+      })
+    }
+    expect(searchResult.item).toMatchObject({ kind: 'tool_result', isError: false })
+    if (searchResult.item.kind === 'tool_result') {
+      expect(searchResult.item.output).toMatchObject({
+        provider: 'brave-search',
+        results: [
+          {
+            url: 'https://docs.example.test/brave',
+            provider: 'brave-search'
+          }
+        ]
+      })
+    }
+  })
+
+  it('searches through DuckDuckGo Instant Answer without an API key', async () => {
+    vi.stubGlobal('fetch', async (input: string | URL, init?: RequestInit) => {
+      const url = String(input)
+      expect(url).toContain('api.duckduckgo.com')
+      expect(url).toContain('q=kun+web')
+      expect(url).toContain('format=json')
+      expect(init?.headers).toMatchObject({ Accept: 'application/json' })
+      return new Response(JSON.stringify({
+        Heading: 'Kun',
+        AbstractText: 'Kun overview.',
+        AbstractURL: 'https://docs.example.test/kun',
+        RelatedTopics: [
+          {
+            FirstURL: 'https://docs.example.test/topic',
+            Text: 'Kun Topic - Related result'
+          }
+        ]
+      }), {
+        headers: { 'content-type': 'application/json' }
+      })
+    })
+    const config = KunCapabilitiesConfig.parse({
+      web: {
+        enabled: true,
+        searchEnabled: true,
+        provider: 'duckduckgo'
+      }
+    })
+    const host = new LocalToolHost({
+      registry: new CapabilityRegistry(buildWebToolProviders(config.web).providers)
+    })
+
+    const result = await host.execute({
+      callId: 'call_1',
+      toolName: 'web_search',
+      arguments: { query: 'kun web', limit: 3 }
+    }, buildContext())
+
+    expect(result.item).toMatchObject({ kind: 'tool_result', isError: false })
+    if (result.item.kind === 'tool_result') {
+      expect(result.item.output).toMatchObject({
+        provider: 'duckduckgo',
+        results: [
+          {
+            url: 'https://docs.example.test/kun',
+            title: 'Kun',
+            snippet: 'Kun overview.',
+            provider: 'duckduckgo',
+            rank: 1
+          },
+          {
+            url: 'https://docs.example.test/topic',
+            title: 'Kun Topic',
+            snippet: 'Related result',
+            provider: 'duckduckgo',
+            rank: 2
+          }
+        ]
+      })
+    }
+  })
+
+  it('searches through a configured SearXNG JSON endpoint', async () => {
+    vi.stubGlobal('fetch', async (input: string | URL, init?: RequestInit) => {
+      const url = String(input)
+      expect(url).toContain('search.example.test/search')
+      expect(url).toContain('q=kun+web')
+      expect(url).toContain('format=json')
+      expect(init?.headers).toMatchObject({ Accept: 'application/json' })
+      return new Response(JSON.stringify({
+        results: [
+          {
+            url: 'https://docs.example.test/searxng',
+            title: 'SearXNG Result',
+            content: 'Search result from SearXNG.'
+          }
+        ]
+      }), {
+        headers: { 'content-type': 'application/json' }
+      })
+    })
+    const config = KunCapabilitiesConfig.parse({
+      web: {
+        enabled: true,
+        searchEnabled: true,
+        provider: 'searxng',
+        baseUrl: 'https://search.example.test'
+      }
+    })
+    const host = new LocalToolHost({
+      registry: new CapabilityRegistry(buildWebToolProviders(config.web).providers)
+    })
+
+    const result = await host.execute({
+      callId: 'call_1',
+      toolName: 'web_search',
+      arguments: { query: 'kun web', limit: 3 }
+    }, buildContext())
+
+    expect(result.item).toMatchObject({ kind: 'tool_result', isError: false })
+    if (result.item.kind === 'tool_result') {
+      expect(result.item.output).toMatchObject({
+        provider: 'searxng',
+        results: [
+          {
+            url: 'https://docs.example.test/searxng',
+            title: 'SearXNG Result',
+            snippet: 'Search result from SearXNG.',
+            provider: 'searxng',
+            rank: 1
+          }
+        ]
+      })
+    }
+  })
+
+  it('accepts searchxng as a compatibility alias for SearXNG', async () => {
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      expect(String(input)).toContain('search.example.test/search')
+      return new Response(JSON.stringify({
+        results: [
+          {
+            url: 'https://docs.example.test/searchxng',
+            title: 'Alias Result',
+            content: 'Search result from the alias provider.'
+          }
+        ]
+      }), {
+        headers: { 'content-type': 'application/json' }
+      })
+    })
+    const config = KunCapabilitiesConfig.parse({
+      web: {
+        enabled: true,
+        searchEnabled: true,
+        provider: 'searchxng',
+        baseUrl: 'https://search.example.test/search'
+      }
+    })
+    const built = buildWebToolProviders(config.web)
+    const host = new LocalToolHost({
+      registry: new CapabilityRegistry(built.providers)
+    })
+
+    expect(built.provider).toBe('searxng')
+    const result = await host.execute({
+      callId: 'call_1',
+      toolName: 'web_search',
+      arguments: { query: 'kun web' }
+    }, buildContext())
+
+    expect(result.item).toMatchObject({ kind: 'tool_result', isError: false })
+    if (result.item.kind === 'tool_result') {
+      expect(result.item.output).toMatchObject({
+        provider: 'searxng',
+        results: [
+          {
+            url: 'https://docs.example.test/searchxng',
+            provider: 'searxng'
+          }
+        ]
+      })
+    }
+  })
+
+  it('advertises web_search for search providers even when legacy searchEnabled is false', async () => {
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({
+      results: [
+        {
+          url: 'https://docs.example.test/searxng-fallback',
+          title: 'Fallback Result',
+          content: 'Search result from SearXNG fallback.'
+        }
+      ]
+    }), {
+      headers: { 'content-type': 'application/json' }
+    }))
+    const config = KunCapabilitiesConfig.parse({
+      web: {
+        enabled: true,
+        fetchEnabled: true,
+        searchEnabled: false,
+        provider: 'searxng',
+        baseUrl: 'https://search.example.test/search'
+      }
+    })
+    const built = buildWebToolProviders(config.web)
+    const host = new LocalToolHost({
+      registry: new CapabilityRegistry(built.providers)
+    })
+
+    expect(built.searchAvailable).toBe(true)
+    await expect(host.listTools(buildContext())).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'web_fetch' }),
+        expect.objectContaining({ name: 'web_search' })
+      ])
+    )
   })
 
   it('reports web availability in the runtime capability manifest', () => {

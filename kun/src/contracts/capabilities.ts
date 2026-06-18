@@ -145,6 +145,12 @@ export const WebCapabilityConfig = CapabilityToggleConfig.extend({
   fetchEnabled: z.boolean().default(false),
   searchEnabled: z.boolean().default(false),
   provider: z.string().min(1).optional(),
+  fetchProvider: z.string().min(1).optional(),
+  fetchFallbackEnabled: z.boolean().default(false),
+  fetchReaderBaseUrl: z.string().min(1).optional(),
+  fetchApiKey: z.string().optional(),
+  apiKey: z.string().optional(),
+  baseUrl: z.string().min(1).optional(),
   allowDomains: z.array(z.string().min(1)).default([]),
   denyDomains: z.array(z.string().min(1)).default([])
 }).strict()
@@ -298,6 +304,8 @@ export function buildRuntimeCapabilityManifest(input: {
   const connectedMcpServers = input.mcp?.connectedServers ?? 0
   const mcpToolCount = input.mcp?.toolCount ?? 0
   const mcpState = mcpCapabilityState(config.mcp.enabled, connectedMcpServers, input.mcp?.lastError)
+  const webProvider = config.web.provider === 'searchxng' ? 'searxng' : config.web.provider
+  const webSearchEnabled = config.web.searchEnabled || Boolean(webProvider && webProvider !== 'fetch')
   const webFetchState = providerCapabilityState(
     config.web.enabled && config.web.fetchEnabled,
     'web fetch is disabled by config',
@@ -305,7 +313,7 @@ export function buildRuntimeCapabilityManifest(input: {
     input.web?.reason ?? 'web fetch provider is unavailable'
   )
   const webSearchState = providerCapabilityState(
-    config.web.enabled && config.web.searchEnabled,
+    config.web.enabled && webSearchEnabled,
     'web search is disabled by config',
     input.web?.searchAvailable === true,
     input.web?.reason ?? 'web search provider is unavailable'
@@ -340,7 +348,7 @@ export function buildRuntimeCapabilityManifest(input: {
       ...webState,
       fetch: webFetchState,
       search: webSearchState,
-      provider: input.web?.provider ?? config.web.provider
+      provider: input.web?.provider ?? webProvider
     },
     skills: {
       ...skillsState,

@@ -21,10 +21,8 @@ import {
   isKunRuntimeInsecure,
   normalizeModelProviderId
 } from '@shared/app-settings'
-import type { GuiUpdateChannel } from '@shared/gui-update'
 import type { SkillRootId } from '../lib/skill-root-preference'
 import { Ban, ChevronDown, FolderOpen, Loader2, Plus, RefreshCw, Settings, Trash2 } from 'lucide-react'
-import { GuiUpdateControl } from './settings-gui-update'
 import {
   InlineNoticeView,
   SecretInput,
@@ -191,6 +189,38 @@ function AdvancedSettingsDisclosure({
   )
 }
 
+function WebAccessRow({
+  title,
+  description,
+  control,
+  controlClassName = ''
+}: {
+  title: string
+  description?: string
+  control: ReactNode
+  controlClassName?: string
+}): ReactElement {
+  return (
+    <div className="grid gap-3 px-3 py-4 md:grid-cols-[minmax(240px,0.9fr)_minmax(280px,1.2fr)] md:items-start md:gap-7">
+      <div className="min-w-0">
+        <div className="text-[14px] font-semibold text-ds-ink">{title}</div>
+        {description ? (
+          <p className="mt-1 max-w-[34rem] text-[13px] leading-6 text-ds-muted">{description}</p>
+        ) : null}
+      </div>
+      <div className={`w-full min-w-0 ${controlClassName}`}>{control}</div>
+    </div>
+  )
+}
+
+function WebAccessHint({ children }: { children: ReactNode }): ReactElement {
+  return (
+    <p className="rounded-lg border border-ds-border-muted bg-ds-main/35 px-3 py-2 text-[12px] leading-5 text-ds-muted">
+      {children}
+    </p>
+  )
+}
+
 export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): ReactElement {
   const {
     t,
@@ -214,16 +244,6 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
     pickWorkspace,
     resetWorkspaceToDefault,
     workspacePickerError,
-    guiUpdateInfo,
-    checkingGuiUpdate,
-    downloadingGuiUpdate,
-    installingGuiUpdate,
-    guiUpdateDownloaded,
-    guiUpdateProgress,
-    guiUpdateError,
-    checkGuiUpdate,
-    downloadGuiUpdate,
-    installGuiUpdate,
     logPath,
     logDirOpenError,
     setLogDirOpenError,
@@ -279,6 +299,20 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
     topKDefault: 5,
     topKMax: 10,
     minScore: 0.15
+  }
+  const webSearch = kun.webSearch ?? {
+    enabled: true,
+    fetchEnabled: true,
+    searchEnabled: false,
+    provider: 'fetch',
+    fetchProvider: 'direct',
+    fetchFallbackEnabled: false,
+    fetchReaderBaseUrl: '',
+    fetchApiKey: '',
+    apiKey: '',
+    baseUrl: '',
+    allowDomains: [],
+    denyDomains: []
   }
   const tokenEconomyDefaults = {
     enabled: false,
@@ -356,6 +390,14 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
     updateKun({
       mcpSearch: {
         ...mcpSearch,
+        ...patch
+      }
+    })
+  }
+  const updateWebSearch = (patch: Record<string, unknown>): void => {
+    updateKun({
+      webSearch: {
+        ...webSearch,
         ...patch
       }
     })
@@ -1383,6 +1425,207 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
 
               <div ref={mcpSectionRef} className="mt-6">
                 <SettingsCard title={t('mcp')}>
+                  <WebAccessRow
+                    title={t('webSearchEnabled')}
+                    description={t('webSearchEnabledDesc')}
+                    controlClassName="md:flex md:justify-start"
+                    control={
+                      <Toggle
+                        checked={webSearch.enabled}
+                        onChange={(v) => updateWebSearch({ enabled: v })}
+                      />
+                    }
+                  />
+                  <WebAccessRow
+                    title={t('webSearchProvider')}
+                    description={t('webSearchProviderDesc')}
+                    control={
+                      <div className="space-y-2">
+                        <select
+                          className={selectControlClass}
+                          value={webSearch.provider}
+                          disabled={!webSearch.enabled}
+                          onChange={(e) => updateWebSearch({
+                            provider: e.target.value,
+                            searchEnabled: e.target.value !== 'fetch',
+                            ...(e.target.value === 'searxng' && !webSearch.baseUrl.trim()
+                              ? { baseUrl: 'http://127.0.0.1:8080/search' }
+                              : {})
+                          })}
+                        >
+                          <option value="fetch">{t('webSearchProviderFetch')}</option>
+                          <option value="brave-search">{t('webSearchProviderBrave')}</option>
+                          <option value="duckduckgo">{t('webSearchProviderDuckDuckGo')}</option>
+                          <option value="searxng">{t('webSearchProviderSearxng')}</option>
+                        </select>
+                        {webSearch.provider === 'duckduckgo' ? (
+                          <WebAccessHint>{t('webSearchDuckDuckGoHint')}</WebAccessHint>
+                        ) : null}
+                        {webSearch.provider === 'searxng' ? (
+                          <WebAccessHint>{t('webSearchSearxngHint')}</WebAccessHint>
+                        ) : null}
+                      </div>
+                    }
+                  />
+                  <WebAccessRow
+                    title={t('webSearchModes')}
+                    description={t('webSearchModesDesc')}
+                    control={
+                      <div className="flex flex-wrap gap-x-5 gap-y-2 rounded-xl border border-ds-border-muted bg-ds-main/35 px-3 py-2.5">
+                        <label className="inline-flex items-center gap-2 text-[13px] font-medium text-ds-muted">
+                          <input
+                            type="checkbox"
+                            checked={webSearch.fetchEnabled}
+                            disabled={!webSearch.enabled}
+                            onChange={(e) => updateWebSearch({ fetchEnabled: e.target.checked })}
+                          />
+                          {t('webFetchEnabled')}
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-[13px] font-medium text-ds-muted">
+                          <input
+                            type="checkbox"
+                            checked={webSearch.searchEnabled}
+                            disabled={!webSearch.enabled || webSearch.provider === 'fetch'}
+                            onChange={(e) => updateWebSearch({ searchEnabled: e.target.checked })}
+                          />
+                          {t('webCloudSearchEnabled')}
+                        </label>
+                      </div>
+                    }
+                  />
+                  <WebAccessRow
+                    title={t('webFetchProvider')}
+                    description={t('webFetchProviderDesc')}
+                    control={
+                      <div className="space-y-2">
+                        <select
+                          className={selectControlClass}
+                          value={webSearch.fetchProvider ?? 'direct'}
+                          disabled={!webSearch.enabled || !webSearch.fetchEnabled}
+                          onChange={(e) => updateWebSearch({
+                            fetchProvider: e.target.value,
+                            fetchFallbackEnabled: e.target.value !== 'direct',
+                            ...(e.target.value === 'jina-reader' && !webSearch.fetchReaderBaseUrl.trim()
+                              ? { fetchReaderBaseUrl: 'https://r.jina.ai/' }
+                              : {}),
+                            ...(e.target.value === 'firecrawl' && !webSearch.fetchReaderBaseUrl.trim()
+                              ? { fetchReaderBaseUrl: 'https://api.firecrawl.dev/v1/scrape' }
+                              : {})
+                          })}
+                        >
+                          <option value="direct">{t('webFetchProviderDirect')}</option>
+                          <option value="jina-reader">{t('webFetchProviderJina')}</option>
+                          <option value="firecrawl">{t('webFetchProviderFirecrawl')}</option>
+                          <option value="browser-mcp">{t('webFetchProviderBrowserMcp')}</option>
+                        </select>
+                        {webSearch.fetchProvider === 'jina-reader' ? (
+                          <WebAccessHint>{t('webFetchJinaHint')}</WebAccessHint>
+                        ) : null}
+                        {webSearch.fetchProvider === 'firecrawl' ? (
+                          <WebAccessHint>{t('webFetchFirecrawlHint')}</WebAccessHint>
+                        ) : null}
+                        {webSearch.fetchProvider === 'browser-mcp' ? (
+                          <WebAccessHint>{t('webFetchBrowserMcpHint')}</WebAccessHint>
+                        ) : null}
+                      </div>
+                    }
+                  />
+                  {webSearch.provider === 'brave-search' ? (
+                    <WebAccessRow
+                      title={t('webSearchApiKey')}
+                      description={t('webSearchApiKeyDesc')}
+                      control={
+                        <SecretInput
+                          value={webSearch.apiKey}
+                          visible={showApiKey}
+                          onToggleVisibility={() => setShowApiKey(!showApiKey)}
+                          onChange={(value) => updateWebSearch({ apiKey: value })}
+                          placeholder={t('webSearchApiKeyPlaceholder')}
+                          showLabel={t('showSecret')}
+                          hideLabel={t('hideSecret')}
+                        />
+                      }
+                    />
+                  ) : null}
+                  <div className="px-3 py-4">
+                    <AdvancedSettingsDisclosure
+                      title={t('webSearchAdvanced')}
+                      description={t('webSearchAdvancedDesc')}
+                    >
+                      <div className="divide-y divide-ds-border-muted">
+                        <WebAccessRow
+                          title={t('webFetchReaderBaseUrl')}
+                          description={t('webFetchReaderBaseUrlDesc')}
+                          control={
+                            <input
+                              className="w-full min-w-0 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                              value={webSearch.fetchReaderBaseUrl ?? ''}
+                              disabled={!webSearch.enabled || webSearch.fetchProvider === 'direct' || webSearch.fetchProvider === 'browser-mcp'}
+                              onChange={(e) => updateWebSearch({ fetchReaderBaseUrl: e.target.value })}
+                              placeholder={webSearch.fetchProvider === 'firecrawl'
+                                ? 'https://api.firecrawl.dev/v1/scrape'
+                                : 'https://r.jina.ai/'}
+                            />
+                          }
+                        />
+                        <WebAccessRow
+                          title={t('webFetchApiKey')}
+                          description={t('webFetchApiKeyDesc')}
+                          control={
+                            <SecretInput
+                              value={webSearch.fetchApiKey ?? ''}
+                              visible={showApiKey}
+                              onToggleVisibility={() => setShowApiKey(!showApiKey)}
+                              onChange={(value) => updateWebSearch({ fetchApiKey: value })}
+                              placeholder={t('webFetchApiKeyPlaceholder')}
+                              showLabel={t('showSecret')}
+                              hideLabel={t('hideSecret')}
+                            />
+                          }
+                        />
+                        <WebAccessRow
+                          title={t('webSearchBaseUrl')}
+                          description={t('webSearchBaseUrlDesc')}
+                          control={
+                            <input
+                              className="w-full min-w-0 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                              value={webSearch.baseUrl}
+                              disabled={!webSearch.enabled || webSearch.provider === 'fetch'}
+                              onChange={(e) => updateWebSearch({ baseUrl: e.target.value })}
+                              placeholder={webSearch.provider === 'searxng'
+                                ? 'http://127.0.0.1:8080/search'
+                                : webSearch.provider === 'duckduckgo'
+                                  ? 'https://api.duckduckgo.com/'
+                                  : 'https://api.search.brave.com/res/v1/web/search'}
+                            />
+                          }
+                        />
+                        <SettingRow
+                          title={t('webSearchDomains')}
+                          description={t('webSearchDomainsDesc')}
+                          wideControl
+                          control={
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <textarea
+                                value={listSettingsText(webSearch.allowDomains)}
+                                onChange={(e) => updateWebSearch({ allowDomains: splitSettingsList(e.target.value) })}
+                                spellCheck={false}
+                                placeholder={t('webSearchAllowDomains')}
+                                className="min-h-24 rounded-2xl border border-ds-border bg-ds-card px-4 py-3 font-mono text-[13px] leading-6 text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                              />
+                              <textarea
+                                value={listSettingsText(webSearch.denyDomains)}
+                                onChange={(e) => updateWebSearch({ denyDomains: splitSettingsList(e.target.value) })}
+                                spellCheck={false}
+                                placeholder={t('webSearchDenyDomains')}
+                                className="min-h-24 rounded-2xl border border-ds-border bg-ds-card px-4 py-3 font-mono text-[13px] leading-6 text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                              />
+                            </div>
+                          }
+                        />
+                      </div>
+                    </AdvancedSettingsDisclosure>
+                  </div>
                   <SettingRow
                     title={t('mcpSearchEnabled')}
                     description={t('mcpSearchEnabledDesc')}

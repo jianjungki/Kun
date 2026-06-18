@@ -133,6 +133,9 @@ export type DsGuiApi = {
   runClawTask: (taskId: string) => Promise<ClawRunResult>
   getScheduleStatus: () => Promise<ScheduleRuntimeStatus>
   runScheduleTask: (taskId: string) => Promise<ScheduleRunResult>
+  openScheduleTaskWorkspace: (taskId: string) => Promise<{ ok: true; path: string } | { ok: false; message: string }>
+  archiveScheduleTaskWorkspace: (taskId: string) => Promise<{ ok: boolean; message?: string }>
+  cleanupScheduleTaskWorkspace: (taskId: string) => Promise<{ ok: boolean; message?: string }>
   startClawImInstallQr: (
     provider: 'feishu' | 'weixin',
     options?: { isLark?: boolean }

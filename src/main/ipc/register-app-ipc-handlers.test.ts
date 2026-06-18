@@ -70,7 +70,6 @@ function registerOptions(overrides: Partial<Parameters<typeof import('./register
     showTurnCompleteNotification: vi.fn() as never,
     getAppVersion: () => '0.1.0',
     readGuiUpdateState: vi.fn() as never,
-    loadGuiUpdaterModule: vi.fn() as never,
     resolveLogDirectory: () => '/tmp/logs',
     logError: vi.fn(),
     ...overrides
