@@ -4,7 +4,8 @@ import type {
   ThreadGoal,
   ThreadTodoList,
   ThreadRelation,
-  ThreadStatus
+  ThreadStatus,
+  ThreadSummary
 } from '../contracts/threads.js'
 import {
   DEFAULT_APPROVAL_POLICY,
@@ -27,6 +28,7 @@ export function createThreadRecord(input: {
   model: string
   mode?: ThreadMode
   status?: ThreadStatus
+  cacheEngineMode?: ThreadRecord['cacheEngineMode']
   approvalPolicy?: ApprovalPolicy
   sandboxMode?: SandboxMode
   costBudgetUsd?: number
@@ -50,6 +52,7 @@ export function createThreadRecord(input: {
     model: input.model,
     mode: input.mode ?? 'agent',
     status: input.status ?? 'idle',
+    cacheEngineMode: input.cacheEngineMode ?? 'hybrid',
     approvalPolicy: input.approvalPolicy ?? DEFAULT_APPROVAL_POLICY,
     sandboxMode: input.sandboxMode ?? DEFAULT_SANDBOX_MODE,
     ...(input.costBudgetUsd !== undefined ? { costBudgetUsd: input.costBudgetUsd } : {}),
@@ -75,14 +78,7 @@ export function touchThread(thread: ThreadEntity, updatedAt?: string): ThreadEnt
 
 export function toThreadSummary(
   thread: ThreadEntity
-): Pick<
-  ThreadEntity,
-  'id' | 'title' | 'workspace' | 'model' | 'mode' | 'status' | 'createdAt' | 'updatedAt'
-  | 'costBudgetUsd' | 'costBudgetWarningSent'
-  | 'relation' | 'parentThreadId'
-  | 'forkedFromThreadId' | 'forkedFromTitle' | 'forkedAt' | 'forkedFromMessageCount' | 'forkedFromTurnCount'
-  | 'goal' | 'todos'
-> {
+): ThreadSummary {
   return {
     id: thread.id,
     title: thread.title,
@@ -90,6 +86,7 @@ export function toThreadSummary(
     model: thread.model,
     mode: thread.mode,
     status: thread.status,
+    cacheEngineMode: thread.cacheEngineMode ?? 'hybrid',
     ...(thread.costBudgetUsd !== undefined ? { costBudgetUsd: thread.costBudgetUsd } : {}),
     ...(thread.costBudgetWarningSent !== undefined ? { costBudgetWarningSent: thread.costBudgetWarningSent } : {}),
     relation: thread.relation ?? 'primary',

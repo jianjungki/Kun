@@ -498,6 +498,7 @@ function appendTruncationNotice(text: string, truncated: TextSlice, mode: Trunca
 
 export function createBashLocalTool(options: BashLocalToolOptions = {}): LocalTool {
   const bashOps = options.operations
+  const sandboxOps = options.sandbox
   const shellRuntime = shellRuntimeInfo()
   return LocalToolHost.defineTool({
     name: 'bash',
@@ -559,7 +560,10 @@ export function createBashLocalTool(options: BashLocalToolOptions = {}): LocalTo
       const yieldSeconds = normalizeYieldSeconds(args.yield_seconds)
       const cwd = workspaceRoot(context.workspace)
       try {
-        if (!bashOps?.exec) {
+        const activeOps = context.sandboxMode === 'external-sandbox' && sandboxOps?.exec
+          ? sandboxOps
+          : bashOps
+        if (!activeOps?.exec) {
           const result = await startBashSession(
             {
               command,
@@ -581,7 +585,9 @@ export function createBashLocalTool(options: BashLocalToolOptions = {}): LocalTo
           context.abortSignal,
           timeout,
           onUpdate,
-          bashOps.exec
+          activeOps.exec
+            ? (command, cwd, options) => activeOps.exec!(command, cwd, { ...options, context })
+            : undefined
         )
         const payload = resultPayload({
           command,

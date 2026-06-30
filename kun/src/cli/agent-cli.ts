@@ -339,6 +339,7 @@ function buildExecContext(options: ServeOptions, workspace: string): ToolHostCon
     memoryPolicy: { enabled: false },
     delegationPolicy: { enabled: false },
     approvalPolicy: options.approvalPolicy,
+    sandboxMode: options.sandboxMode,
     abortSignal: new AbortController().signal,
     awaitApproval: async () => (options.approvalPolicy === 'auto' ? 'allow' : 'deny')
   }

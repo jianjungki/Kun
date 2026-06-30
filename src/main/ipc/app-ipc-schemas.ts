@@ -28,6 +28,7 @@ import {
 } from '../../shared/kun-endpoints'
 import {
   CLAW_MODEL_IDS,
+  CACHE_ENGINE_MODES,
   MODEL_ENDPOINT_FORMATS,
   SCHEDULE_MODEL_IDS,
   SCHEDULE_REASONING_EFFORT_IDS,
@@ -160,6 +161,7 @@ const sandboxModeSchema = z.enum(['read-only', 'workspace-write', 'danger-full-a
 const mcpSearchModeSchema = z.enum(['direct', 'search', 'auto'])
 const kunStorageBackendSchema = z.enum(['hybrid', 'file'])
 const kunCompactionSummaryModeSchema = z.enum(['heuristic', 'model'])
+const cacheEngineModeSchema = z.enum(CACHE_ENGINE_MODES)
 const clawRunModeSchema = z.enum(['agent', 'plan'])
 const clawImProviderSchema = z.enum(['feishu', 'weixin'])
 const clawScheduleKindSchema = z.enum(['manual', 'interval', 'daily', 'at'])
@@ -257,7 +259,8 @@ const kunRuntimePatchSchema = z.object({
     toolArgumentRepair: z.object({
       maxStringBytes: z.number().int().positive().max(16 * 1024 * 1024).optional()
     }).strict().optional()
-  }).strict().optional()
+  }).strict().optional(),
+  cacheEngineMode: cacheEngineModeSchema.optional()
 }).strict()
 
 const logPatchSchema = z.object({

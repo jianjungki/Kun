@@ -121,6 +121,7 @@ export class ThreadService {
       workspace: request.workspace,
       model: request.model,
       mode: request.mode,
+      cacheEngineMode: request.cacheEngineMode,
       approvalPolicy: request.approvalPolicy,
       sandboxMode: request.sandboxMode,
       ...(request.costBudgetUsd !== undefined ? { costBudgetUsd: request.costBudgetUsd } : {}),
@@ -139,6 +140,7 @@ export class ThreadService {
     title?: string
     workspace?: string
     status?: ThreadStatus
+    cacheEngineMode?: ThreadRecord['cacheEngineMode']
     approvalPolicy?: ApprovalPolicy
     sandboxMode?: SandboxMode
     costBudgetUsd?: number | null

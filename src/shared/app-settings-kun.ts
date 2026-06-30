@@ -4,8 +4,10 @@ import {
   DEFAULT_KUN_DATA_DIR,
   DEFAULT_KUN_MODEL,
   DEFAULT_KUN_PORT,
+  DEFAULT_CACHE_ENGINE_MODE,
   DEFAULT_MODEL_ENDPOINT_FORMAT,
   DEFAULT_SANDBOX_MODE,
+  type CacheEngineMode,
   type AppSettingsV1,
   type KunContextCompactionSettingsV1,
   type KunHistoryHygieneSettingsV1,
@@ -110,7 +112,8 @@ export function defaultKunRuntimeSettings(
     webSearch: defaultKunWebSearchSettings(),
     storage: defaultKunStorageSettings(),
     contextCompaction: defaultKunContextCompactionSettings(),
-    runtimeTuning: defaultKunRuntimeTuningSettings()
+    runtimeTuning: defaultKunRuntimeTuningSettings(),
+    cacheEngineMode: DEFAULT_CACHE_ENGINE_MODE
   }
 }
 
@@ -283,7 +286,11 @@ export function mergeKunRuntimeSettings(
     webSearch: nextWebSearch,
     storage: nextStorage,
     contextCompaction: nextContextCompaction,
-    runtimeTuning: nextRuntimeTuning
+    runtimeTuning: nextRuntimeTuning,
+    cacheEngineMode:
+      typeof patch?.cacheEngineMode === 'string'
+        ? patch.cacheEngineMode
+        : current.cacheEngineMode ?? DEFAULT_CACHE_ENGINE_MODE
   }
 }
 

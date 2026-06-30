@@ -1,4 +1,5 @@
 import { stat } from 'node:fs/promises'
+import type { ToolHostContext } from '../../ports/tool-host.js'
 import type { LocalTool } from './local-tool-host.js'
 
 export type FsStats = NonNullable<Awaited<ReturnType<typeof stat>>>
@@ -112,6 +113,7 @@ export type ReadLocalToolOptions = {
 export type BashLocalToolOptions = {
   defaultTimeoutSeconds?: number
   operations?: BashLocalToolOperations
+  sandbox?: BashLocalToolOperations
 }
 
 export type WriteLocalToolOptions = {
@@ -165,7 +167,13 @@ export interface BashLocalToolOperations {
   exec?: (
     command: string,
     cwd: string,
-    options: { signal: AbortSignal; timeoutSeconds: number; onData?: (data: Buffer) => void }
+    options: {
+      signal: AbortSignal
+      timeoutSeconds: number
+      onData?: (data: Buffer) => void
+      context?: ToolHostContext
+      env?: NodeJS.ProcessEnv
+    }
   ) => Promise<{ exitCode: number | null; shell?: string }>
 }
 

@@ -19,7 +19,7 @@ import { buildMemoryToolProviders } from '../adapters/tool/memory-tool-provider.
 import { buildDelegationToolProviders } from '../adapters/tool/delegation-tool-provider.js'
 import { buildWebToolProviders } from '../adapters/tool/web-tool-provider.js'
 import { LocalWorkspaceInspector } from '../adapters/workspace/local-workspace-inspector.js'
-import { createImmutablePrefix } from '../cache/immutable-prefix.js'
+import { createImmutablePrefix, prepareRequestWithCacheEngine } from '../cache/index.js'
 import {
   buildRuntimeCapabilityManifest,
   type KunCapabilitiesConfig
@@ -45,6 +45,7 @@ import { SteeringQueue } from '../loop/steering-queue.js'
 import { RandomIdGenerator } from '../ports/id-generator.js'
 import type { SessionStore } from '../ports/session-store.js'
 import type { ThreadStore } from '../ports/thread-store.js'
+import type { ThreadRecord } from '../contracts/threads.js'
 import { KUN_SYSTEM_PROMPT } from '../prompt/kun-system-prompt.js'
 import { RuntimeEventRecorder } from '../services/runtime-event-recorder.js'
 import { ThreadService } from '../services/thread-service.js'
@@ -139,6 +140,7 @@ export async function createKunServeRuntime(
     nowIso
   })
   const threadService = new ThreadService({ threadStore, sessionStore, events, ids, nowIso })
+  const threadCacheEngineMode: ThreadRecord['cacheEngineMode'] = 'hybrid'
   await seedUsageCarryover({ threadStore, sessionStore, usageService })
   const modelClient = new DeepseekCompatModelClient({
     baseUrl: options.baseUrl,
@@ -305,6 +307,18 @@ export async function createKunServeRuntime(
         markdown,
         preserveCompleted: true
       })
+    },
+    cacheEngineRouter: {
+      async prepareRequest(input) {
+        const thread = await threadService.get(input.threadId)
+        return prepareRequestWithCacheEngine(
+          {
+            thread: thread ?? ({ id: input.threadId, cacheEngineMode: threadCacheEngineMode } as ThreadRecord),
+            request: input.request
+          },
+          threadCacheEngineMode
+        )
+      }
     }
   })
   const startedAt = options.startedAt ?? nowIso()

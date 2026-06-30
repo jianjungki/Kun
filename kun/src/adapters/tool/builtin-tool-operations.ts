@@ -136,7 +136,7 @@ export function createLocalBashOperations(): BashLocalToolOperations {
       const { shell, args, name } = shellRuntimeInfo()
       const child = spawn(shell, shellCommandArgs({ shell, args }, command), {
         cwd,
-        env: process.env,
+        env: options.env ?? process.env,
         detached: process.platform !== 'win32',
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true
