@@ -318,13 +318,17 @@ export class LocalToolHost implements ToolHost {
 
 function hookContext(
   context: ToolHostContext
-): Pick<ToolHostContext, 'threadId' | 'turnId' | 'workspace' | 'threadMode' | 'approvalPolicy'> {
+): Pick<
+  ToolHostContext,
+  'threadId' | 'turnId' | 'workspace' | 'threadMode' | 'approvalPolicy' | 'sandboxMode'
+> {
   return {
     threadId: context.threadId,
     turnId: context.turnId,
     workspace: context.workspace,
     approvalPolicy: context.approvalPolicy,
-    ...(context.threadMode ? { threadMode: context.threadMode } : {})
+    ...(context.threadMode ? { threadMode: context.threadMode } : {}),
+    ...(context.sandboxMode ? { sandboxMode: context.sandboxMode } : {})
   }
 }
 

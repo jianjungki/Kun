@@ -7,7 +7,10 @@ export type ToolHookPhase = 'PreToolUse' | 'PostToolUse'
 export type ToolHookInvocation = {
   phase: ToolHookPhase
   call: ToolCallLike
-  context: Pick<ToolHostContext, 'threadId' | 'turnId' | 'workspace' | 'threadMode' | 'approvalPolicy'>
+  context: Pick<
+    ToolHostContext,
+    'threadId' | 'turnId' | 'workspace' | 'threadMode' | 'approvalPolicy' | 'sandboxMode'
+  >
   result?: {
     output: unknown
     isError?: boolean
