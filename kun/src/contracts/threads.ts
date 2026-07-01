@@ -25,6 +25,9 @@ export type ThreadMode = z.infer<typeof ThreadMode>
 export const ThreadRelation = z.enum(['primary', 'fork', 'side'])
 export type ThreadRelation = z.infer<typeof ThreadRelation>
 
+export const CacheEngineMode = z.enum(['legacy', 'hybrid', 'platform', 'app'])
+export type CacheEngineMode = z.infer<typeof CacheEngineMode>
+
 export const ThreadGoalStatus = z.enum([
   'active',
   'paused',
@@ -97,6 +100,7 @@ export const ThreadSchema = z.object({
   model: z.string(),
   mode: ThreadMode,
   status: ThreadStatus,
+  cacheEngineMode: CacheEngineMode.default('hybrid'),
   approvalPolicy: ApprovalPolicySchema.default(DEFAULT_APPROVAL_POLICY),
   sandboxMode: SandboxModeSchema.default(DEFAULT_SANDBOX_MODE),
   costBudgetUsd: z.number().positive().optional(),
@@ -126,6 +130,7 @@ export const ThreadSummarySchema = ThreadSchema.pick({
   costBudgetUsd: true,
   costBudgetWarningSent: true,
   relation: true,
+  cacheEngineMode: true,
   parentThreadId: true,
   forkedFromThreadId: true,
   forkedFromTitle: true,
@@ -144,6 +149,7 @@ export const CreateThreadRequest = z.object({
   workspace: z.string().min(1),
   model: z.string().min(1),
   mode: ThreadMode.default('agent'),
+  cacheEngineMode: CacheEngineMode.optional(),
   approvalPolicy: ApprovalPolicySchema.optional(),
   sandboxMode: SandboxModeSchema.optional(),
   costBudgetUsd: z.number().positive().optional()

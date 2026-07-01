@@ -9,6 +9,7 @@ import type {
   SandboxMode
 } from '@shared/app-settings'
 import {
+  CACHE_ENGINE_MODES,
   DEFAULT_MODEL_PROVIDER_ID,
   MODEL_ENDPOINT_FORMATS,
   DEFAULT_WRITE_INLINE_COMPLETION_BASE_URL,
@@ -394,6 +395,7 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
       }
     })
   }
+  const cacheEngineMode = kun.cacheEngineMode ?? 'hybrid'
   const updateWebSearch = (patch: Record<string, unknown>): void => {
     updateKun({
       webSearch: {
@@ -444,6 +446,9 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
         ...patch
       }
     })
+  }
+  const updateCacheEngineMode = (mode: string): void => {
+    updateKun({ cacheEngineMode: mode as AppSettingsV1['agents']['kun']['cacheEngineMode'] })
   }
   const updateToolStorm = (patch: Record<string, unknown>): void => {
     updateRuntimeTuning({
@@ -810,6 +815,23 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                           </div>
                         ) : null}
                       </div>
+                    }
+                  />
+                  <SettingRow
+                    title={t('cacheEngineMode')}
+                    description={t('cacheEngineModeDesc')}
+                    control={
+                      <select
+                        className={selectControlClass}
+                        value={cacheEngineMode}
+                        onChange={(e) => updateCacheEngineMode(e.target.value)}
+                      >
+                        {CACHE_ENGINE_MODES.map((mode) => (
+                          <option key={mode} value={mode}>
+                            {t(`cacheEngineMode${mode[0].toUpperCase()}${mode.slice(1)}`)}
+                          </option>
+                        ))}
+                      </select>
                     }
                   />
                   <div className="px-3 py-4">

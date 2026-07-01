@@ -244,6 +244,9 @@ export type AgentLoopOptions = {
   attachmentStore?: AttachmentStore
   memoryStore?: MemoryStore
   tokenEconomy?: TokenEconomyConfig
+  cacheEngineRouter?: {
+    prepareRequest: (input: { threadId: string; request: ModelRequest }) => ModelRequest | Promise<ModelRequest>
+  }
   contextCompaction?: ContextCompactionConfig
   toolStorm?: ToolStormBreakerOptions & { enabled?: boolean }
   toolArgumentRepair?: {
@@ -539,6 +542,7 @@ export class AgentLoop {
       delegationPolicy: { enabled: false },
       ...(allowedToolNames ? { allowedToolNames } : {}),
       approvalPolicy,
+      sandboxMode: thread?.sandboxMode,
       abortSignal: signal,
       awaitApproval: async () => 'allow',
       awaitUserInput: (input) => this.awaitUserInput(threadId, turnId, input, signal)
@@ -641,13 +645,16 @@ export class AgentLoop {
       ...economyRequest,
       history: applyRequestHistoryHygiene(economyRequest.history, tokenEconomy.historyHygiene)
     }
+    const routedRequest = this.opts.cacheEngineRouter
+      ? await this.opts.cacheEngineRouter.prepareRequest({ threadId, request })
+      : request
     if (tokenEconomy.enabled) {
       await this.recordTokenEconomySavings({
         threadId,
         turnId,
         model,
         rawInputTokens,
-        sentInputTokens: estimateModelRequestInputTokens(request)
+        sentInputTokens: estimateModelRequestInputTokens(routedRequest)
       })
     }
     const textAccumulator: { value: string } = { value: '' }
@@ -657,10 +664,10 @@ export class AgentLoop {
     const completedToolCalls: ToolCallLike[] = []
     let stopReason: 'stop' | 'tool_calls' | 'length' | 'error' = 'stop'
     await this.recordPipelineStage(threadId, turnId, 'pre_send', {
-      model: request.model,
-      historyItems: request.history.length,
-      toolCount: request.tools.length,
-      ...(request.requiredToolName ? { requiredToolName: request.requiredToolName } : {}),
+      model: routedRequest.model,
+      historyItems: routedRequest.history.length,
+      toolCount: routedRequest.tools.length,
+      ...(routedRequest.requiredToolName ? { requiredToolName: routedRequest.requiredToolName } : {}),
       ...attachmentRequestPipelineDetails({
         attachmentIds: turn?.attachmentIds ?? [],
         imageAttachments: attachments.imageAttachments,
@@ -669,9 +676,9 @@ export class AgentLoop {
       })
     })
     await this.recordPipelineStage(threadId, turnId, 'post_send', {
-      model: request.model
+      model: routedRequest.model
     })
-    for await (const chunk of this.opts.model.stream(request)) {
+    for await (const chunk of this.opts.model.stream(routedRequest)) {
       if (signal.aborted) return 'aborted'
       switch (chunk.kind) {
         case 'assistant_text_delta':
@@ -881,6 +888,7 @@ export class AgentLoop {
             allowedToolNames,
             toolProviderKinds: new Map(tools.map((tool) => [tool.name, tool.providerKind])),
             approvalPolicy,
+            sandboxMode: thread?.sandboxMode,
             signal
           })
           if (dispatched === 'aborted') return 'aborted'
@@ -921,6 +929,7 @@ export class AgentLoop {
       allowedToolNames,
       toolProviderKinds: new Map(tools.map((tool) => [tool.name, tool.providerKind])),
       approvalPolicy,
+      sandboxMode: thread?.sandboxMode,
       signal
     })
     if (dispatched === 'aborted') return 'aborted'
@@ -939,6 +948,7 @@ export class AgentLoop {
     allowedToolNames?: readonly string[]
     toolProviderKinds: ReadonlyMap<string, ToolProviderKind | undefined>
     approvalPolicy: ToolHostContext['approvalPolicy']
+    sandboxMode?: ToolHostContext['sandboxMode']
     signal: AbortSignal
   }): Promise<'continue' | 'aborted'> {
     const context = this.createToolContext(input)
@@ -1046,6 +1056,7 @@ export class AgentLoop {
     activeSkillIds: readonly string[]
     allowedToolNames?: readonly string[]
     approvalPolicy: ToolHostContext['approvalPolicy']
+    sandboxMode?: ToolHostContext['sandboxMode']
     signal: AbortSignal
   }): ToolHostContext {
     return {
@@ -1060,6 +1071,7 @@ export class AgentLoop {
       delegationPolicy: { enabled: false },
       ...(input.allowedToolNames ? { allowedToolNames: input.allowedToolNames } : {}),
       approvalPolicy: input.approvalPolicy,
+      ...(input.sandboxMode ? { sandboxMode: input.sandboxMode } : {}),
       abortSignal: input.signal,
       awaitApproval: async (approval) => {
         await this.opts.events.record({

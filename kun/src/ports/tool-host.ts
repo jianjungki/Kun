@@ -1,4 +1,5 @@
 import type { ApprovalPolicy } from '../contracts/policy.js'
+import type { SandboxMode } from '../contracts/policy.js'
 import type { ApprovalRequest } from '../domain/approval.js'
 import type { TurnItem } from '../contracts/items.js'
 import type { ModelCapabilityMetadata } from '../contracts/capabilities.js'
@@ -80,6 +81,8 @@ export type ToolHostContext = {
   /** Optional tool-name allow-list. When set, other tools are not advertised or executed. */
   allowedToolNames?: readonly string[]
   approvalPolicy: ApprovalPolicy
+  /** Filesystem/process isolation mode selected for the current thread. */
+  sandboxMode?: SandboxMode
   abortSignal: AbortSignal
   /** Resolves a pending approval with the user's decision. */
   awaitApproval: (approval: ApprovalRequest) => Promise<'allow' | 'deny'>

@@ -739,6 +739,7 @@ function summaryFromRow(row: ThreadRow): ThreadSummary {
     model: row.model,
     mode: row.mode,
     status: row.status,
+    cacheEngineMode: 'hybrid',
     ...(row.cost_budget_usd !== null ? { costBudgetUsd: row.cost_budget_usd } : {}),
     ...(row.cost_budget_warning_sent !== null ? { costBudgetWarningSent: Boolean(row.cost_budget_warning_sent) } : {}),
     relation: row.relation,

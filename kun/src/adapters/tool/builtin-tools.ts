@@ -6,6 +6,7 @@ import type {
   ToolsOptions
 } from './builtin-tool-types.js'
 import { createBashLocalTool } from './builtin-bash-tool.js'
+import { createSandboxRuntimeBashOperations } from './sandbox-runtime.js'
 import { createEditLocalTool, createWriteLocalTool } from './builtin-file-tools.js'
 import { createReadLocalTool } from './builtin-read-tool.js'
 import { createFindLocalTool, createGrepLocalTool, createLsLocalTool } from './builtin-search-tools.js'
@@ -16,6 +17,7 @@ export * from './builtin-read-tool.js'
 export * from './builtin-file-tools.js'
 export * from './builtin-search-tools.js'
 export * from './builtin-bash-tool.js'
+export * from './sandbox-runtime.js'
 
 export function createBuiltinLocalTool(
   toolName: BuiltinToolName,
@@ -25,7 +27,7 @@ export function createBuiltinLocalTool(
     case 'read':
       return createReadLocalTool(options.read)
     case 'bash':
-      return createBashLocalTool(options.bash)
+      return createBashLocalTool(withDefaultSandboxBashOptions(options.bash))
     case 'edit':
       return createEditLocalTool(options.edit)
     case 'write':
@@ -50,7 +52,7 @@ export function createToolDefinition(toolName: ToolName, options: ToolsOptions =
 export function buildBuiltinLocalTools(options: BuiltinLocalToolsOptions = {}): LocalTool[] {
   return [
     createReadLocalTool(options.read),
-    createBashLocalTool(options.bash),
+    createBashLocalTool(withDefaultSandboxBashOptions(options.bash)),
     createEditLocalTool(options.edit),
     createWriteLocalTool(options.write),
     createGrepLocalTool(options.grep),
@@ -66,7 +68,7 @@ export function createAllTools(options: ToolsOptions = {}): Record<ToolName, Loc
 export function buildCodingBuiltinLocalTools(options: BuiltinLocalToolsOptions = {}): LocalTool[] {
   return [
     createReadLocalTool(options.read),
-    createBashLocalTool(options.bash),
+    createBashLocalTool(withDefaultSandboxBashOptions(options.bash)),
     createEditLocalTool(options.edit),
     createWriteLocalTool(options.write)
   ]
@@ -94,12 +96,21 @@ export function buildBuiltinLocalToolRecord(
 ): Record<BuiltinToolName, LocalTool> {
   return {
     read: createReadLocalTool(options.read),
-    bash: createBashLocalTool(options.bash),
+    bash: createBashLocalTool(withDefaultSandboxBashOptions(options.bash)),
     edit: createEditLocalTool(options.edit),
     write: createWriteLocalTool(options.write),
     grep: createGrepLocalTool(options.grep),
     find: createFindLocalTool(options.find),
     ls: createLsLocalTool(options.ls)
+  }
+}
+
+function withDefaultSandboxBashOptions(
+  options: BuiltinLocalToolsOptions['bash'] = {}
+): NonNullable<BuiltinLocalToolsOptions['bash']> {
+  return {
+    ...options,
+    sandbox: options.sandbox ?? createSandboxRuntimeBashOperations()
   }
 }
 

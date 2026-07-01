@@ -21,6 +21,7 @@ export type ScheduleKind = 'manual' | 'interval' | 'daily' | 'at'
 export type ScheduleTaskStatus = 'idle' | 'running' | 'success' | 'error'
 export type ScheduleModel = 'auto' | 'deepseek-v4-pro' | 'deepseek-v4-flash'
 export type ScheduleReasoningEffort = 'off' | 'low' | 'medium' | 'high' | 'max'
+export type CacheEngineMode = 'legacy' | 'hybrid' | 'platform' | 'app'
 export type ClawRunMode = ScheduleRunMode
 export type ClawImProvider = 'feishu' | 'weixin'
 export type ClawScheduleKind = ScheduleKind
@@ -50,6 +51,8 @@ export const DEFAULT_WRITE_INLINE_LONG_COMPLETION_MAX_TOKENS = 256
 export const DEFAULT_KUN_PORT = 8899
 export const DEFAULT_WEIXIN_BRIDGE_RPC_URL = 'http://127.0.0.1:18790/api/v1/admin/rpc'
 export const DEFAULT_MODEL_PROVIDER_ID = 'deepseek'
+export const DEFAULT_CACHE_ENGINE_MODE: CacheEngineMode = 'hybrid'
+export const CACHE_ENGINE_MODES = ['legacy', 'hybrid', 'platform', 'app'] as const
 export type { ModelEndpointFormat }
 export type ModelProviderProfileV1 = {
   id: string
@@ -105,6 +108,8 @@ export type KunRuntimeSettingsV1 = {
   contextCompaction: KunContextCompactionSettingsV1
   /** Low-level loop guards and model argument repair tuning. */
   runtimeTuning: KunRuntimeTuningSettingsV1
+  /** Default cache engine used when a new thread is created. */
+  cacheEngineMode: CacheEngineMode
 }
 
 export type KunMcpSearchMode = 'direct' | 'search' | 'auto'

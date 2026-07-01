@@ -85,6 +85,7 @@ import {
   syncTurnCompletionPoll,
   watchTurnCompletionNotification
 } from './chat-store-runtime'
+import { getKunRuntimeSettings } from '@shared/app-settings'
 
 type SseAbortRef = { current: AbortController | null }
 
@@ -126,6 +127,7 @@ export function createThreadActions(
     try {
       const p = getProvider()
       const settings = await rendererRuntimeClient.getSettings()
+      const runtime = getKunRuntimeSettings(settings)
       const activeThread = get().activeThreadId
         ? get().threads.find((thread) => thread.id === get().activeThreadId)
         : null
@@ -160,7 +162,8 @@ export function createThreadActions(
       const t = await p.createThread({
         workspace: workspaceRoot,
         title: getDefaultThreadTitle(),
-        mode: 'agent'
+        mode: 'agent',
+        cacheEngineMode: runtime.cacheEngineMode
       })
       // Register + activate optimistically before refreshing. A freshly created
       // Kun thread may not be listed until the first message is written.
@@ -515,10 +518,11 @@ export function createThreadActions(
           reusableThreadId != null && shouldAutoTitleThread(reusableThread)
         const createdThread =
           reusableThreadId == null
-            ? await p.createThread({
+              ? await p.createThread({
                 workspace: workspaceRoot,
                 title: generatedTitle,
-                mode: mode ?? 'agent'
+                mode: mode ?? 'agent',
+                cacheEngineMode: getKunRuntimeSettings(settings).cacheEngineMode
               })
             : null
         const threadId = reusableThreadId ?? createdThread?.id ?? null
