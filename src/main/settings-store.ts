@@ -30,11 +30,12 @@ import {
 
 export type { AppSettingsV1 }
 
-const DEFAULT_WORKSPACE_ROOT = join(homedir(), '.deepseekgui', 'default_workspace')
-const DEFAULT_CLAW_CHANNELS_ROOT = join(homedir(), '.deepseekgui', 'claw')
+const DEFAULT_WORKSPACE_ROOT = join(homedir(), '.pengcodex', 'default_workspace')
+const DEFAULT_CLAW_CHANNELS_ROOT = join(homedir(), '.pengcodex', 'claw')
 const DEFAULT_WRITE_WORKSPACE_ROOT_ABSOLUTE = expandHomePath(DEFAULT_WRITE_WORKSPACE_ROOT)
-const SETTINGS_FILE_NAME = 'deepseek-gui-settings.json'
-const COMPATIBLE_USER_DATA_DIR_NAMES = ['deepseek-gui', 'DeepSeek GUI'] as const
+const SETTINGS_FILE_NAME = 'pengcodex-settings.json'
+const COMPATIBLE_SETTINGS_FILE_NAMES = [SETTINGS_FILE_NAME, 'deepseek-gui-settings.json'] as const
+const COMPATIBLE_USER_DATA_DIR_NAMES = ['PengCodex', 'pengcodex', 'deepseek-gui', 'DeepSeek GUI'] as const
 const WELCOME_MARKDOWN = `# Welcome to Write
 
 This is your default writing workspace.
@@ -262,10 +263,16 @@ async function writeInvalidSettingsBackup(path: string, raw: string): Promise<st
 function compatibleSettingsPaths(currentPath: string): string[] {
   const currentUserDataDir = dirname(currentPath)
   const currentDirName = basename(currentUserDataDir)
+  const currentFileName = basename(currentPath)
   const parentDir = dirname(currentUserDataDir)
-  return COMPATIBLE_USER_DATA_DIR_NAMES
-    .filter((dirName) => dirName !== currentDirName)
-    .map((dirName) => join(parentDir, dirName, SETTINGS_FILE_NAME))
+  const candidates: string[] = []
+  for (const dirName of COMPATIBLE_USER_DATA_DIR_NAMES) {
+    for (const fileName of COMPATIBLE_SETTINGS_FILE_NAMES) {
+      if (dirName === currentDirName && fileName === currentFileName) continue
+      candidates.push(join(parentDir, dirName, fileName))
+    }
+  }
+  return candidates
 }
 
 async function readSettingsFileWithCompatibility(
@@ -331,11 +338,11 @@ export class JsonSettingsStore {
         await this.save(defaults)
         if (backupPath) {
           console.warn(
-            `[deepseek-gui] Invalid settings JSON was replaced with defaults. Backup: ${backupPath}`
+            `[pengcodex] Invalid settings JSON was replaced with defaults. Backup: ${backupPath}`
           )
         } else {
           console.warn(
-            `[deepseek-gui] Invalid settings JSON was replaced with defaults. Backup could not be written for ${sourcePath}.`
+            `[pengcodex] Invalid settings JSON was replaced with defaults. Backup could not be written for ${sourcePath}.`
           )
         }
         return defaults

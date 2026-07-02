@@ -126,6 +126,13 @@ describe('kun defaults', () => {
     })
   })
 
+  it('defaults the Skill registry to all discovered skills', () => {
+    expect(defaultKunRuntimeSettings().skillRegistry).toEqual({
+      activationMode: 'all',
+      activeSkillIds: []
+    })
+  })
+
   it('defaults advanced Kun runtime tuning to conservative values', () => {
     expect(defaultKunRuntimeSettings()).toMatchObject({
       storage: {
@@ -336,6 +343,31 @@ describe('mergeKunRuntimeSettings', () => {
     expect(next.mcpSearch.mode).toBe('search')
     expect(next.mcpSearch.topKDefault).toBe(3)
     expect(next.mcpSearch.topKMax).toBe(current.mcpSearch.topKMax)
+  })
+
+  it('normalizes Skill registry patches', () => {
+    const current = defaultKunRuntimeSettings()
+    const next = mergeKunRuntimeSettings(current, {
+      skillRegistry: {
+        activationMode: 'selected',
+        activeSkillIds: [' review ', '', 'bug-hunt', 'review']
+      }
+    })
+
+    expect(next.skillRegistry).toEqual({
+      activationMode: 'selected',
+      activeSkillIds: ['review', 'bug-hunt']
+    })
+
+    const reset = mergeKunRuntimeSettings(next, {
+      skillRegistry: {
+        activationMode: 'all'
+      }
+    })
+    expect(reset.skillRegistry).toEqual({
+      activationMode: 'all',
+      activeSkillIds: ['review', 'bug-hunt']
+    })
   })
 
   it('deep-merges advanced Kun settings', () => {

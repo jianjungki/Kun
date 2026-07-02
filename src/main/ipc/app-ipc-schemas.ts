@@ -159,6 +159,7 @@ const uiFontScaleSchema = z.enum(['small', 'medium', 'large'])
 const approvalPolicySchema = z.enum(['on-request', 'untrusted', 'never', 'auto', 'suggest'])
 const sandboxModeSchema = z.enum(['read-only', 'workspace-write', 'danger-full-access', 'external-sandbox'])
 const mcpSearchModeSchema = z.enum(['direct', 'search', 'auto'])
+const skillRegistryActivationModeSchema = z.enum(['all', 'selected'])
 const kunStorageBackendSchema = z.enum(['hybrid', 'file'])
 const kunCompactionSummaryModeSchema = z.enum(['heuristic', 'model'])
 const cacheEngineModeSchema = z.enum(CACHE_ENGINE_MODES)
@@ -237,6 +238,10 @@ const kunRuntimePatchSchema = z.object({
     baseUrl: z.string().trim().max(MAX_URL_LENGTH).optional(),
     allowDomains: z.array(z.string().trim().min(1).max(256)).max(256).optional(),
     denyDomains: z.array(z.string().trim().min(1).max(256)).max(256).optional()
+  }).strict().optional(),
+  skillRegistry: z.object({
+    activationMode: skillRegistryActivationModeSchema.optional(),
+    activeSkillIds: z.array(z.string().trim().min(1).max(128)).max(256).optional()
   }).strict().optional(),
   storage: z.object({
     backend: kunStorageBackendSchema.optional(),

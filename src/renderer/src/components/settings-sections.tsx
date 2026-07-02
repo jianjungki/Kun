@@ -1,5 +1,6 @@
 export { GeneralSettingsSection } from './settings-section-general'
 export { WriteSettingsSection } from './settings-section-write'
 export { AgentsSettingsSection } from './settings-section-agents'
+export { SkillRegistrySettingsSection } from './settings-section-skills'
 export { ClawSettingsSection } from './settings-section-claw'
 export { KeyboardShortcutsSettingsSection } from './settings-section-shortcuts'

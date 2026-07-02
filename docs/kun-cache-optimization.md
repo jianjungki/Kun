@@ -1,24 +1,24 @@
-# Kun 缓存优化技术文档
+# PengCodex Core 缓存优化技术文档
 
-本文记录 DeepSeek GUI 当前 Kun 运行时的缓存优化设计、实现位置、
+本文记录 PengCodex 当前 PengCodex Core 运行时的缓存优化设计、实现位置、
 统计口径与后续演进方向。目标不是单纯“让缓存数字变高”，而是让 GUI 与
 本地 agent 的请求前缀长期稳定、可验证、可观测，并且在 Code / Write /
 连接手机三条主路径下都成立。
 
 ## 目标
 
-Kun 的缓存优化服务于四个目标：
+PengCodex Core 的缓存优化服务于四个目标：
 
 - 让发送给 DeepSeek 的请求前缀尽可能字节稳定。
 - 让缓存命中统计与 DeepSeek 原生字段一致，而不是依赖猜测。
 - 让 prefix 漂移和消息历史污染在开发期就被发现。
-- 让 GUI 只承担 HTTP/SSE 调用职责，把缓存纪律收敛在 Kun 内部。
+- 让 GUI 只承担 HTTP/SSE 调用职责，把缓存纪律收敛在 PengCodex Core 内部。
 
 更高一层的产品目标是提高每一个 token 的 ROI。用户付出的上下文预算应该
 尽量转化为有效推理、代码修改、需求澄清和可执行结论，而不是被重复的工具
 schema、超长工具输出、MCP 工具目录、无效 retry 或历史噪声消耗掉。
 
-因此 Kun 的 token 优化不是单一的“缓存命中率优化”，而是一组组合策略：
+因此 PengCodex Core 的 token 优化不是单一的“缓存命中率优化”，而是一组组合策略：
 
 - **稳定可缓存的前缀**：系统提示词、工具 schema、few-shot 与 pinned
   constraints 进入 immutable prefix，并用 fingerprint 验证漂移。
@@ -34,7 +34,7 @@ schema、超长工具输出、MCP 工具目录、无效 retry 或历史噪声消
 
 ## 总体原则
 
-Kun 借鉴了 Reasonix 的 cache-first 设计，但按 GUI 场景做了收束：
+PengCodex Core 借鉴了 Reasonix 的 cache-first 设计，但按 GUI 场景做了收束：
 
 - GUI 不拼 prompt，不在 renderer 或 main process 做缓存判断。
 - `kun serve` 是唯一请求出口，缓存相关策略都放在运行时内部。
@@ -45,13 +45,13 @@ Kun 借鉴了 Reasonix 的 cache-first 设计，但按 GUI 场景做了收束：
 
 ### 1. 稳定系统提示词
 
-Kun 使用独立的稳定系统提示词文件：
+PengCodex Core 使用独立的稳定系统提示词文件：
 
 - `kun/src/prompt/kun-system-prompt.ts`
 
 这个前缀只承载长期稳定的运行契约，例如：
 
-- Kun 身份
+- PengCodex Core 身份
 - GUI 调用边界
 - 工具行为约束
 - 缓存行为约束
@@ -69,7 +69,7 @@ Kun 使用独立的稳定系统提示词文件：
 
 ### 2. ImmutablePrefix 指纹
 
-Kun 通过 `ImmutablePrefix` 管理系统 prompt、tools、pinned constraints
+PengCodex Core 通过 `ImmutablePrefix` 管理系统 prompt、tools、pinned constraints
 和 few-shots，并为这些内容生成稳定指纹：
 
 - `kun/src/cache/immutable-prefix.ts`
@@ -92,7 +92,7 @@ Kun 通过 `ImmutablePrefix` 管理系统 prompt、tools、pinned constraints
 
 ### 3. 工具定义稳定化
 
-工具集合本身就是 prompt prefix 的一部分。Kun 在发送请求前会统一做：
+工具集合本身就是 prompt prefix 的一部分。PengCodex Core 在发送请求前会统一做：
 
 - 工具数组按 `name` 排序
 - `inputSchema` 递归 canonicalize
@@ -114,7 +114,7 @@ metadata 直接定位到是哪一轮开始扰动缓存前缀。
 
 除了 prefix 稳定，历史消息本身也会影响缓存和可用性。
 
-Kun 当前在模型请求边界对消息做一层共享的 model history repair：
+PengCodex Core 当前在模型请求边界对消息做一层共享的 model history repair：
 
 - 孤儿 `tool_result` 不上传
 - 缺少对应 result 的 `tool_call` 不上传
@@ -133,7 +133,7 @@ Kun 当前在模型请求边界对消息做一层共享的 model history repair�
 - `kun/src/adapters/model/deepseek-compat-model-client.ts`
 - `kun/src/loop/agent-loop.ts`
 
-Kun 也会在模型请求边界做一层 Reasonix 风格的 history hygiene：
+PengCodex Core 也会在模型请求边界做一层 Reasonix 风格的 history hygiene：
 
 - 只压缩发给模型的历史，不改磁盘/session 里保存的完整工具结果。
 - 超大的 `tool_result` 会按字节、行数和轻量 token 估算上限保留 head、
@@ -149,7 +149,7 @@ Kun 也会在模型请求边界做一层 Reasonix 风格的 history hygiene：
 同一 turn 内还会启用 repeat-loop guard：
 
 - 第三次完全相同的 `(toolName, arguments)` 会被抑制。
-- Kun 会写入一个 error `tool_result`，让模型收敛到更窄的查询或解释原因。
+- PengCodex Core 会写入一个 error `tool_result`，让模型收敛到更窄的查询或解释原因。
 - 文件变更类工具会清掉之前的只读调用记录，避免“编辑后复读”被误判。
 
 连续的内置只读工具调用会做保守并发：
@@ -186,7 +186,7 @@ Fork / resume 创建新线程时也会修复克隆历史：
 
 ## 缓存统计口径
 
-Kun 的缓存命中统计优先使用 DeepSeek 原生 usage 字段：
+PengCodex Core 的缓存命中统计优先使用 DeepSeek 原生 usage 字段：
 
 - `prompt_cache_hit_tokens`
 - `prompt_cache_miss_tokens`
@@ -220,7 +220,7 @@ cacheHitRate = hit / prompt_tokens
 - `kun/src/telemetry/usage-counter.ts`
 - `kun/src/domain/usage.ts`
 
-Kun 也会把单轮真实 `prompt_tokens` 作为下一次请求的 compaction pressure。
+PengCodex Core 也会把单轮真实 `prompt_tokens` 作为下一次请求的 compaction pressure。
 如果 provider 报告的 prompt token 数已经达到当前模型 soft threshold，下一次
 model step 会优先触发 compaction；这样比单纯依赖 4 字符/token 的本地估算更
 接近 DeepSeek 实际上下文压力，也能在工具 continuation 前保住热前缀占比。
@@ -258,7 +258,7 @@ usage/cache counters：
 
 ### 1. 单元测试
 
-Kun 已覆盖这些关键行为：
+PengCodex Core 已覆盖这些关键行为：
 
 - 原生 `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens` 优先解析
 - tools canonical 排序与 schema key 稳定化
@@ -273,7 +273,7 @@ Kun 已覆盖这些关键行为：
 
 ### 2. 运行时 usage API
 
-GUI 通过 Kun 使用统一接口读取 usage：
+GUI 通过 PengCodex Core 使用统一接口读取 usage：
 
 - `GET /v1/usage?group_by=thread`
 - `GET /v1/usage?group_by=day`
@@ -285,7 +285,7 @@ GUI 通过 Kun 使用统一接口读取 usage：
 
 ### 3. 真实线程热身验证
 
-2026-06-02 的 Kun 实测结果：
+2026-06-02 的 PengCodex Core 实测结果：
 
 - 12 轮短消息：去掉冷启动后的热命中约 `94.7%`
 - 同一稳定前缀热身后 24 轮短消息：整体约 `95.2%`
@@ -298,7 +298,7 @@ GUI 通过 Kun 使用统一接口读取 usage：
 
 ## 与 GUI 的边界
 
-这个文档强调一个产品级约束：缓存优化属于 Kun，而不是 GUI。
+这个文档强调一个产品级约束：缓存优化属于 PengCodex Core，而不是 GUI。
 
 GUI 侧只应该做：
 
@@ -348,5 +348,5 @@ GUI 不应该做：
 ## 相关文档
 
 - 架构总览：`docs/kun-architecture.md`
-- Kun 贡献指南：`docs/kun-contributing.md`
-- Kun 使用说明：`kun/README.md`
+- PengCodex Core 贡献指南：`docs/kun-contributing.md`
+- PengCodex Core 使用说明：`kun/README.md`

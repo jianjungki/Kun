@@ -1,7 +1,7 @@
-# Kun GUI single-runtime architecture
+# PengCodex Core GUI single-runtime architecture
 
-This document describes how DeepSeek GUI should now be organized around one dedicated runtime,
-`Kun`, that serves the GUI through a single HTTP/SSE boundary.
+This document describes how PengCodex should now be organized around one dedicated runtime,
+`PengCodex Core`, that serves the GUI through a single HTTP/SSE boundary.
 The conclusion is clear up front: the GUI keeps one agent with the only ID
 `kun`; Code, Write, and Connect phone all flow through the same `kun serve`
 HTTP/SSE boundary.
@@ -47,7 +47,7 @@ context compaction, usage/cache telemetry).
 
 ## Cache-hit optimization
 
-Kun cache-hit metrics should be computed and optimized using DeepSeek native fields first:
+PengCodex Core cache-hit metrics should be computed and optimized using DeepSeek native fields first:
 
 - Model client prefers native fields:
   `prompt_cache_hit_tokens` and `prompt_cache_miss_tokens`.
@@ -57,7 +57,7 @@ Kun cache-hit metrics should be computed and optimized using DeepSeek native fie
   DeepSeek native misses are not always equal to `prompt_tokens - hit`; Reasonix also uses
   the `hit + miss` denominator.
 - `kun/src/prompt/kun-system-prompt.ts` is the stable prefix.
-  It may only contain long-lived Kun run contract content and must not include
+  It may only contain long-lived PengCodex Core run contract content and must not include
   workspace names, timestamps, file snippets, selected text, user dynamic state,
 or one-off tool outputs.
 - `ImmutablePrefix` must run `verifyImmutablePrefix()` before each model step.
@@ -100,7 +100,7 @@ Reasonix findings still useful as future references:
 
 - Tool-collection mutation policy: adding tools should be append-only; edit/reorder/remove
   requires either restart or a new session boundary to avoid sudden cache misses.
-  Current Kun canonicalizes schema, but this mutation policy still needs explicit product-level
+  Current PengCodex Core canonicalizes schema, but this mutation policy still needs explicit product-level
   enforcement.
 - LLM fold summarizer: `ContextCompactor` is currently local summary logic with no extra
   model call. If model-based summarization is introduced later, it should reuse
@@ -114,7 +114,7 @@ or sub-agent scratch, keep “displayable” and “replayable to model” separ
 
 ## Renderer-side removal items
 
-Renderer should only expose Kun. The UI sections listed below should be removed or
+Renderer should only expose PengCodex Core. The UI sections listed below should be removed or
 kept removed:
 
 - Agent switcher: `AgentSwitcher` is no longer shown; `AGENT_CATALOG` only includes `kun`.
@@ -123,7 +123,7 @@ kept removed:
 - Runtime insights / right panel: retain only `Changes`, `Preview`, `Plan`, and GUI workspace
   views (`File`, etc.); remove runtime/usage control surfaces.
 - Slash menu commands `/usage`, `/runtime`: these imply switchable runtimes and should be removed.
-- Settings provider selector: `Settings -> Agents` directly edits Kun config including:
+- Settings provider selector: `Settings -> Agents` directly edits PengCodex Core config including:
   `binaryPath`, `port`, `autoStart`, `apiKey`, `baseUrl`, `runtimeToken`, `dataDir`,
   `model`, `approvalPolicy`, `sandboxMode`, `insecure`.
 - Painting/Design starter card is removed; only Code, Write, and Connect phone remain.
@@ -136,14 +136,14 @@ Main process and preload no longer expose old provider IPC:
 - Remove `reasonix:rpc-send`, `reasonix:spawn-if-needed`, and the `reasonix` RPC bridge.
 - Remove CodeWhale adapter, Reasonix adapter, Reasonix HTTP bridge,
   DeepSeek/CodeWhale updater, legacy binary resolver, and old process manager.
-- Remove diagnostic/importer modules unrelated to Kun.
+- Remove diagnostic/importer modules unrelated to PengCodex Core.
 
 Main process now only needs:
 
 - `kunRuntimeAdapter`: start/stop `kun serve`, sync config, calculate base URL,
 and append auth headers.
-- `runtimeRequestViaHost`: forward `/v1/*` after ensuring Kun is running.
-- `startSse` / `stopSse`: forward Kun SSE streams keyed by `threadId + sinceSeq`.
+- `runtimeRequestViaHost`: forward `/v1/*` after ensuring PengCodex Core is running.
+- `startSse` / `stopSse`: forward PengCodex Core SSE streams keyed by `threadId + sinceSeq`.
 
 ## Settings / migration
 
@@ -160,7 +160,7 @@ Saved settings should now be just:
       "apiKey": "",
       "baseUrl": "https://api.deepseek.com/beta",
       "runtimeToken": "",
-      "dataDir": "~/.deepseekgui/kun",
+      "dataDir": "~/.pengcodex/runtime",
       "model": "deepseek-v4-pro",
       "approvalPolicy": "auto",
       "sandboxMode": "workspace-write",
@@ -183,14 +183,14 @@ migration from old settings:
 - Legacy Connect phone fields (internally still named Claw) `agentThreadIds.codewhale` and `agentThreadIds.reasonix` are collapsed
   to `agentThreadIds.kun`; per-provider maps are not retained.
 
-## Code / Write / Connect phone flows under Kun
+## Code / Write / Connect phone flows under PengCodex Core
 
 - Code: `KunRuntimeProvider` handles list/create thread, send turn,
   steer, interrupt, compact, approval, and SSE mapping.
   Chat UI does not directly know about old providers.
-- Write: writing assistant and inline completion share the same Kun API key/base URL.
-  Write thread registry identifies write threads as Kun threads only, with no Reasonix distinction.
-- Connect phone: scheduled tasks, Feishu/Lark/WeChat, and IM webhooks create or reuse Kun threads.
+- Write: writing assistant and inline completion share the same PengCodex Core API key/base URL.
+  Write thread registry identifies write threads as PengCodex Core threads only, with no Reasonix distinction.
+- Connect phone: scheduled tasks, Feishu/Lark/WeChat, and IM webhooks create or reuse PengCodex Core threads.
   The codebase still uses the internal `claw` route, settings key, and runtime file names for legacy-name compatibility.
   `threadId` / `localThreadId` remain only for legacy settings compatibility;
   canonical mapping is written to `agentThreadIds.kun`.
@@ -198,7 +198,7 @@ migration from old settings:
 ## Functional parity from CodeWhale in GUI HTTP path
 
 Replacing CodeWhale is not only preserving chat.
-Kun GUI HTTP must expose the same capabilities previously exposed through CodeWhale:
+PengCodex Core GUI HTTP must expose the same capabilities previously exposed through CodeWhale:
 
 - `GET /v1/threads` supports `limit`, `search`, `include_archived`, `archived_only`.
   Archived/deleted threads are hidden by default; session search and archive views
@@ -208,7 +208,7 @@ Kun GUI HTTP must expose the same capabilities previously exposed through CodeWh
   During copy, pending `approval` / `user-input` states are rewritten to history-only
   states to prevent hanging gates in new sessions.
 - `POST /v1/sessions/{id}/resume-thread` follows the previous CodeWhale resume path.
-  Kun should first attempt same-name thread restore, then session snapshot/JSONL reconstruction,
+  PengCodex Core should first attempt same-name thread restore, then session snapshot/JSONL reconstruction,
 and return `404` when not found.
 - Both `POST /v1/user-inputs/{id}` and legacy `POST /v1/user-input/{id}` are accepted,
   with `{ answers }` or `{ cancelled: true }`.
@@ -216,7 +216,7 @@ and return `404` when not found.
 - `POST /v1/approvals/{id}` continues tool approval. Both approval and user-input flows
   use gate/route/service layering; no agent logic is implemented in renderer.
 - `GET /v1/usage?group_by=thread|day` returns accumulated token/turn/cache-hit counters.
-  Workbench home and composer footer consume Kun usage only and do not open runtime
+  Workbench home and composer footer consume PengCodex Core usage only and do not open runtime
   insight panels.
 
 ## Paths that must remain removed
@@ -250,7 +250,7 @@ Legacy UI entrypoints should not reappear:
 
 ## Design constraints
 
-Kun packages are organized by ports & adapters:
+PengCodex Core packages are organized by ports & adapters:
 
 - `contracts/`: HTTP/SSE DTOs and zod schemas.
 - `ports/`: ModelClient, ToolHost, ThreadStore, SessionStore,
@@ -262,7 +262,7 @@ Kun packages are organized by ports & adapters:
 - `server/`: Router, auth, SSE, routes.
 
 Renderer should never implement agent business logic; it only maps HTTP client/SSE state
-and forwards results. When adding capability, add Kun tool or HTTP endpoint first,
+and forwards results. When adding capability, add PengCodex Core tool or HTTP endpoint first,
 and only then add renderer wiring if needed (not both).
 
 ## Verification list
@@ -277,13 +277,13 @@ npm run build
 
 Manual smoke checks:
 
-1. Open DeepSeek GUI.
+1. Open PengCodex.
 2. Code can create a new session, send messages, stream output, and use approval/interruption.
 3. Write opens writing space; inline completion and inline selected-text assistant share API key.
-4. Connect phone can save settings, run manual tasks, and write thread IDs back to Kun mapping.
-5. `Settings -> Agents` shows only Kun, with no provider switch and no runtime diagnostics/
+4. Connect phone can save settings, run manual tasks, and write thread IDs back to PengCodex Core mapping.
+5. `Settings -> Agents` shows only PengCodex Core, with no provider switch and no runtime diagnostics/
    CodeWhale/Reasonix blocks.
 6. If `GET /v1/usage?group_by=thread` returns history, home and footer no longer show
    blank “No usage yet”, but show token, turn, cache-hit indicators.
 7. Thread search, archive, fork/resume, and request_user_input answer/cancel flows all operate
-   through Kun HTTP paths.
+   through PengCodex Core HTTP paths.

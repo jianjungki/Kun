@@ -3,6 +3,7 @@ const { join } = require('node:path')
 
 function loadLocalReleaseEnv() {
   const candidates = [
+    process.env.PENGCODEX_RELEASE_ENV,
     process.env.DEEPSEEK_GUI_RELEASE_ENV,
     join(__dirname, 'scripts', 'release.local.env'),
     join(__dirname, 'release.local.env')
@@ -43,25 +44,29 @@ const hasNotaryToolCredentials = Boolean(
     (process.env.APPLE_API_KEY || process.env.APPLE_API_KEY_BASE64)
 )
 
-const updateChannel = normalizeUpdateChannel(process.env.DEEPSEEK_GUI_UPDATE_CHANNEL || 'stable')
-const releaseAppVersion = (process.env.DEEPSEEK_GUI_APP_VERSION || '').trim()
+const updateChannel = normalizeUpdateChannel(
+  process.env.PENGCODEX_UPDATE_CHANNEL || process.env.DEEPSEEK_GUI_UPDATE_CHANNEL || 'stable'
+)
+const releaseAppVersion = (
+  process.env.PENGCODEX_APP_VERSION || process.env.DEEPSEEK_GUI_APP_VERSION || ''
+).trim()
 const artifactVersion = releaseAppVersion || '${version}'
 
 function normalizeUpdateChannel(raw) {
   const value = String(raw || '').trim()
   if (value === 'stable' || value === 'frontier') return value
-  throw new Error(`DEEPSEEK_GUI_UPDATE_CHANNEL must be "stable" or "frontier", got: ${raw}`)
+  throw new Error(`PENGCODEX_UPDATE_CHANNEL must be "stable" or "frontier", got: ${raw}`)
 }
 
 if (releaseAppVersion && !/^\d+\.\d+\.\d+$/.test(releaseAppVersion)) {
   throw new Error(
-    `DEEPSEEK_GUI_APP_VERSION must be a valid x.y.z semver, got: ${releaseAppVersion}`
+    `PENGCODEX_APP_VERSION must be a valid x.y.z semver, got: ${releaseAppVersion}`
   )
 }
 
 module.exports = {
-  appId: 'com.xingyuzhong.deepseekgui',
-  productName: 'DeepSeek GUI',
+  appId: 'com.xingyuzhong.pengcodex',
+  productName: 'PengCodex',
   asar: true,
   asarUnpack: [
     '**/kun/dist/**/*',
@@ -73,7 +78,7 @@ module.exports = {
   ],
   npmRebuild: true,
   directories: {
-    output: process.env.DEEPSEEK_GUI_DIST_DIR || 'dist'
+    output: process.env.PENGCODEX_DIST_DIR || process.env.DEEPSEEK_GUI_DIST_DIR || 'dist'
   },
   files: [
     'out/**/*',
@@ -90,7 +95,7 @@ module.exports = {
     '!**/CHANGELOG*',
     '!**/node_modules/openclaw/**/*'
   ],
-  artifactName: `DeepSeek-GUI-${artifactVersion}-\${os}-\${arch}.\${ext}`,
+  artifactName: `PengCodex-${artifactVersion}-\${os}-\${arch}.\${ext}`,
   publish: null,
   afterPack: './scripts/after-pack.cjs',
   afterSign: './scripts/mac-notarize.cjs',
@@ -128,8 +133,8 @@ module.exports = {
     // 明确创建快捷方式；always 在覆盖安装时也会重建（即使用户曾删掉桌面图标）
     createDesktopShortcut: 'always',
     createStartMenuShortcut: true,
-    shortcutName: 'DeepSeek GUI',
-    uninstallDisplayName: 'DeepSeek GUI',
+    shortcutName: 'PengCodex',
+    uninstallDisplayName: 'PengCodex',
     deleteAppDataOnUninstall: false
   },
   linux: {

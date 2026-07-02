@@ -285,6 +285,24 @@ describe('syncGuiManagedKunConfig', () => {
       join(workspaceRoot, '.codex', 'skills'),
       extraRoot
     ]))
+    expect(parsed.capabilities.skills.enabledSkillIds).toEqual([])
+  })
+
+  it('writes selected Skill registry ids to Kun runtime capabilities', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    const module = await import('./kun-process')
+
+    await module.syncGuiManagedKunConfig(tempRoot, {
+      ...defaultKunRuntimeSettings(),
+      skillRegistry: {
+        activationMode: 'selected',
+        activeSkillIds: ['review', 'bug-hunt', 'review']
+      }
+    })
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
+    expect(parsed.capabilities.skills.enabledSkillIds).toEqual(['review', 'bug-hunt'])
   })
 
   it('writes GUI-managed MCP search settings without removing existing servers', async () => {

@@ -69,9 +69,10 @@ import { webhookUrl } from './claw-runtime-helpers'
 import { isKunHealthResponseBody } from './kun-health'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const APP_USER_MODEL_ID = 'com.xingyuzhong.deepseekgui'
+const APP_USER_MODEL_ID = 'com.xingyuzhong.pengcodex'
 const HIDDEN_START_ARG = '--hidden'
-const startupTraceEnabled = process.env.DEEPSEEK_GUI_STARTUP_TRACE === '1'
+const startupTraceEnabled =
+  process.env.PENGCODEX_STARTUP_TRACE === '1' || process.env.DEEPSEEK_GUI_STARTUP_TRACE === '1'
 const startupTraceStart = Date.now()
 
 function traceStartup(label: string, detail?: unknown): void {
@@ -244,15 +245,15 @@ traceStartup('single instance lock checked', {
 function trayLabels(locale: AppSettingsV1['locale']): { show: string; quit: string; tooltip: string } {
   if (locale === 'zh') {
     return {
-      show: '显示 DeepSeek GUI',
+      show: '显示 PengCodex',
       quit: '退出',
-      tooltip: 'DeepSeek GUI'
+      tooltip: 'PengCodex'
     }
   }
   return {
-    show: 'Show DeepSeek GUI',
+    show: 'Show PengCodex',
     quit: 'Quit',
-    tooltip: 'DeepSeek GUI'
+    tooltip: 'PengCodex'
   }
 }
 
@@ -278,7 +279,7 @@ function syncLoginItemSettings(settings: AppSettingsV1): void {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    console.warn('[deepseek-gui] failed to update login item settings:', error)
+    console.warn('[pengcodex] failed to update login item settings:', error)
     logWarn('desktop-behavior', 'Failed to update login item settings.', { message })
   }
 }
@@ -351,7 +352,7 @@ async function showTurnCompleteNotification(
     return { ok: true, shown: false, reason: 'unsupported' }
   }
 
-  const title = normalizeNotificationText(payload.title, 'DeepSeek GUI', 80)
+  const title = normalizeNotificationText(payload.title, 'PengCodex', 80)
   const body = normalizeNotificationText(payload.body, 'Conversation complete.', 180)
 
   try {
@@ -473,7 +474,7 @@ function queueRuntimeSettingsApply(prev: AppSettingsV1, next: AppSettingsV1): vo
       await restartManagedRuntimeForSettingsChange(anchor, current)
     })
     .catch((error: unknown) => {
-      logWarn('settings-apply', 'Failed to apply Kun runtime settings in background', {
+      logWarn('settings-apply', 'Failed to apply PengCodex Core settings in background', {
         message: error instanceof Error ? error.message : String(error)
       })
     })
@@ -497,7 +498,7 @@ function queueRuntimeMcpConfigApply(settings: AppSettingsV1): void {
       await restartManagedRuntimeForMcpConfigChange(current)
     })
     .catch((error: unknown) => {
-      logWarn('mcp-config', 'Failed to apply Kun MCP config change in background', {
+      logWarn('mcp-config', 'Failed to apply PengCodex Core MCP config change in background', {
         message: error instanceof Error ? error.message : String(error)
       })
     })
@@ -573,13 +574,13 @@ async function ensureKunRuntime(settings: AppSettingsV1): Promise<void> {
   if (!hasApiKey) {
     throw runtimeJsonError(
       'missing_api_key',
-      'DeepSeek API Key is required before the GUI can start Kun.'
+      'An API key is required before PengCodex can start the local agent.'
     )
   }
   if (!runtime.autoStart) {
     throw runtimeJsonError(
       'runtime_offline',
-      'Kun is offline. Enable automatic startup in Settings, or start `kun serve` manually.'
+      'PengCodex Core is offline. Enable automatic startup in Settings, or start `kun serve` manually.'
     )
   }
 
@@ -591,14 +592,14 @@ async function ensureKunRuntime(settings: AppSettingsV1): Promise<void> {
   try {
     await adapter.ensureRunning(settings)
   } catch (e) {
-    console.error('[deepseek-gui] failed to start kun:', e)
+    console.error('[pengcodex] failed to start PengCodex Core:', e)
     throw e
   }
   const started = await waitForKunHealth(settings, 20_000)
   if (!started) {
     throw runtimeJsonError(
       'runtime_unhealthy',
-      'Kun did not become healthy after launch.'
+      'PengCodex Core did not become healthy after launch.'
     )
   }
 
@@ -635,7 +636,7 @@ function createWindow(options: { suppressInitialShow?: boolean } = {}): void {
   }
   mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
     const message = error instanceof Error ? error.message : String(error)
-    console.error(`[deepseek-gui] failed to load preload ${preloadPath}:`, error)
+    console.error(`[pengcodex] failed to load preload ${preloadPath}:`, error)
     logError('preload', 'Failed to load preload script', { preloadPath, message })
   })
   const showWindow = (): void => {
@@ -731,10 +732,10 @@ async function restartManagedRuntimeForSettingsChange(
     await adapter.ensureRunning(next)
     const healthy = await waitForKunHealth(next, 20_000)
     if (!healthy) {
-      console.warn('[deepseek-gui] Kun restart did not become healthy after settings change')
+      console.warn('[pengcodex] PengCodex Core restart did not become healthy after settings change')
     }
   } catch (e) {
-    console.warn('[deepseek-gui] Kun restart failed after settings change:', e)
+    console.warn('[pengcodex] PengCodex Core restart failed after settings change:', e)
   }
 }
 
@@ -752,10 +753,10 @@ async function restartManagedRuntimeForMcpConfigChange(settings: AppSettingsV1):
     await adapter.ensureRunning(settings)
     const healthy = await waitForKunHealth(settings, 20_000)
     if (!healthy) {
-      console.warn('[deepseek-gui] Kun restart did not become healthy after MCP config change')
+      console.warn('[pengcodex] PengCodex Core restart did not become healthy after MCP config change')
     }
   } catch (e) {
-    console.warn('[deepseek-gui] Kun restart failed after MCP config change:', e)
+    console.warn('[pengcodex] PengCodex Core restart failed after MCP config change:', e)
   }
 }
 
@@ -765,14 +766,14 @@ async function waitForManagedRuntimeReadyBeforeStop(
 ): Promise<void> {
   const healthy = await waitForKunHealth(settings, 20_000)
   if (!healthy) {
-    logWarn(source, 'Kun did not become healthy before a managed restart; stopping it anyway')
+    logWarn(source, 'PengCodex Core did not become healthy before a managed restart; stopping it anyway')
     return
   }
   const idle = await waitForRuntimeTurnsIdle({ settings })
   if (idle === 'timeout') {
-    logWarn(source, 'Kun still has running turns after waiting; stopping it anyway')
+    logWarn(source, 'PengCodex Core still has running turns after waiting; stopping it anyway')
   } else if (idle === 'unavailable') {
-    logWarn(source, 'Could not verify Kun turn idleness before a managed restart; stopping it anyway')
+    logWarn(source, 'Could not verify PengCodex Core turn idleness before a managed restart; stopping it anyway')
   }
 }
 
@@ -935,13 +936,13 @@ app.whenReady().then(async () => {
   traceStartup('createWindow:returned')
 
   void pruneOnStartup().catch((err) => {
-    console.warn('[deepseek-gui] prune logs:', err)
+    console.warn('[pengcodex] prune logs:', err)
   })
 
   if (resolveConfiguredApiKey(initial)) {
     setTimeout(() => {
       void kunRuntimeAdapter.resolveExecutable(initial).catch((err) => {
-        console.warn('[deepseek-gui] prewarm Kun binary:', err)
+        console.warn('[pengcodex] prewarm PengCodex Core binary:', err)
       })
     }, 1500)
   }
@@ -956,15 +957,15 @@ app.whenReady().then(async () => {
   })
 }).catch((error) => {
   const message = error instanceof Error ? error.message : String(error)
-  console.error('[deepseek-gui] startup failed:', error)
-  dialog.showErrorBox('DeepSeek GUI failed to start', message)
+  console.error('[pengcodex] startup failed:', error)
+  dialog.showErrorBox('PengCodex failed to start', message)
   app.quit()
 })
 }
 
 app.on('window-all-closed', () => {
   void stopManagedRuntimes().catch((error) => {
-    console.warn('[deepseek-gui] failed to stop Kun runtime:', error)
+    console.warn('[pengcodex] failed to stop PengCodex Core runtime:', error)
   })
   if (process.platform !== 'darwin') {
     app.quit()
@@ -977,7 +978,7 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   void stopManagedRuntimesForQuit()
     .catch((error) => {
-      console.warn('[deepseek-gui] failed to stop Kun runtime:', error)
+      console.warn('[pengcodex] failed to stop PengCodex Core runtime:', error)
       managedRuntimesStoppedForQuit = true
     })
     .finally(() => {

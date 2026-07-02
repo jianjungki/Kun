@@ -54,7 +54,7 @@ BM25 + 关键词 RAG 不负责替模型“决定怎么改”，它负责给模�
 
 - 用户选中短词或短句时，默认把编辑范围扩展到当前自然段。
 - 用户选中较长文本或跨空行文本时，只编辑原选区。
-- 用户手动做一次性短语替换时，会先用确定性规则把同段其他同短语一起替换，例如 `deepseek gui -> DeepSeek GUI`。
+- 用户手动做一次性短语替换时，会先用确定性规则把同段其他同短语一起替换，例如 `pengcodex -> PengCodex`。
 - 渲染端发送 `prefix`、`suffix`、`original`、`instruction` 和选区元数据。
 - 渲染端会带上最近 2 分钟内当前文件的用户/AI 编辑记录，帮助模型理解“继续这样改”。
 - 主进程构造编辑 prompt，并把检索片段作为 reference-only 上下文注入。
@@ -65,7 +65,7 @@ BM25 + 关键词 RAG 不负责替模型“决定怎么改”，它负责给模�
 编辑 prompt 的关键是边界清晰：
 
 ```markdown
-<!-- DeepSeek GUI inline edit.
+<!-- PengCodex inline edit.
 You are replacing the missing middle between PREFIX and SUFFIX.
 Return exactly the replacement text for the edit scope.
 User instruction: ...
@@ -89,7 +89,7 @@ Recent local edits in this file...
   "messages": [
     {
       "role": "system",
-      "content": "You are DeepSeek GUI inline writing..."
+      "content": "You are PengCodex inline writing..."
     },
     {
       "role": "user",
@@ -106,7 +106,7 @@ Recent local edits in this file...
 
 BM25 + 关键词 RAG 解决的是跨文件参考，recent edits 解决的是当前文件里刚刚发生的编辑意图。实现会记录用户输入和 AI 原地编辑产生的删除/插入文本、前后邻域、编辑来源和 AI 编辑指令。
 
-此外，术语大小写和简单重命名不完全依赖模型。编辑器会对一次性短语替换做同段传播：当你把 `deepseek gui` 改成 `DeepSeek GUI` 或 `DXGUI`，同一个自然段里其他 `deepseek gui` 会同步替换。这个确定性层负责“必须发生”的一致性，recent edits 和 RAG 再负责后续 AI 编辑时理解这种意图。
+此外，术语大小写和简单重命名不完全依赖模型。编辑器会对一次性短语替换做同段传播：当你把 `pengcodex` 改成 `PengCodex` 或 `DXGUI`，同一个自然段里其他 `pengcodex` 会同步替换。这个确定性层负责“必须发生”的一致性，recent edits 和 RAG 再负责后续 AI 编辑时理解这种意图。
 
 当用户输入“继续这样改”“同样替换”“照刚才那样润色”这类弱指令时，prompt 会提醒模型从 recent edits 中推断当前编辑模式；如果 recent edits 和当前指令冲突，则优先当前指令。
 
@@ -116,7 +116,7 @@ BM25 + 关键词 RAG 解决的是跨文件参考，recent edits 解决的是当�
 Recent local edits in this file. Treat these as intent signals...
 
 [1] 2s ago; source=user; range=20-32
-Deleted: DeepSeek GUI
+Deleted: PengCodex
 Inserted: Write mode
 Around: Earlier term: [[edit]] should be consistent.
 ```

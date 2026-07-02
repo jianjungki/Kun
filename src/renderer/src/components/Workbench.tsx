@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
-import type { ApprovalPolicy, SandboxMode } from '@shared/app-settings'
+import type { ApprovalPolicy, KunSkillRegistrySettingsV1, SandboxMode } from '@shared/app-settings'
 import { parseClawCommand } from '@shared/claw-commands'
 import { DEFAULT_COMPOSER_MODEL_IDS } from '@shared/default-composer-models'
 import { buildGuiPlanId, buildPlanRelativePath } from '@shared/gui-plan'
@@ -69,7 +69,7 @@ import { useWorkbenchPlanController } from './workbench-plan-controller'
 import { prepareImageAttachmentUpload } from '../lib/image-attachment-upload'
 import { isChatAttachmentUploadEnabled } from '../lib/attachment-upload-availability'
 import { normalizeWorkspaceRoot } from '../lib/workspace-path'
-import { useKeyboardShortcutSettings } from '../lib/keyboard-shortcut-settings'
+import { SETTINGS_CHANGED_EVENT, useKeyboardShortcutSettings } from '../lib/keyboard-shortcut-settings'
 import { collectComposerChangeSummary } from '../lib/composer-change-summary'
 import {
   buildComposerFileContextPrompt,
@@ -193,6 +193,15 @@ function mergeSkillCommands(
     } : skill)
   }
   return [...merged.values()]
+}
+
+function filterSkillCommandsByRegistry<T extends { id: string }>(
+  skills: T[],
+  registry: KunSkillRegistrySettingsV1 | undefined
+): T[] {
+  if (registry?.activationMode !== 'selected') return skills
+  const active = new Set((registry.activeSkillIds ?? []).map((id) => id.trim()).filter(Boolean))
+  return skills.filter((skill) => active.has(skill.id))
 }
 
 function sddAssistantContextFromBlocks(blocks: ChatBlock[], maxMessages = 10): string {
@@ -344,7 +353,8 @@ export function Workbench(): ReactElement {
   const [composerReasoningEffort, setComposerReasoningEffort] =
     useState<ComposerReasoningEffort>('max')
   const [runtimeInfo, setRuntimeInfo] = useState<CoreRuntimeInfoJson | null>(null)
-  const [runtimeSkills, setRuntimeSkills] = useState<CoreRuntimeSkillJson[]>([])
+  const [availableSkills, setAvailableSkills] = useState<CoreRuntimeSkillJson[]>([])
+  const [skillRegistry, setSkillRegistry] = useState<KunSkillRegistrySettingsV1 | undefined>(undefined)
   const [composerAttachments, setComposerAttachments] = useState<AttachmentReference[]>([])
   const [composerFileReferences, setComposerFileReferences] = useState<ComposerFileReference[]>([])
   const [composerExecutionSettings, setComposerExecutionSettings] =
@@ -699,15 +709,17 @@ export function Workbench(): ReactElement {
     const runtimeReady = runtimeConnection === 'ready'
     if (!runtimeReady) setRuntimeInfo(null)
     const provider = getProvider()
+    const settingsTask = rendererRuntimeClient.getSettings().catch(() => null)
     const localSkillsTask = typeof window !== 'undefined' && typeof window.dsGui?.listSkills === 'function'
       ? window.dsGui.listSkills(activeSkillWorkspace || undefined)
       : Promise.resolve({ ok: true as const, skills: [], validationErrors: [] })
     void Promise.allSettled([
       runtimeReady && provider.getRuntimeInfo ? provider.getRuntimeInfo() : Promise.resolve(null),
       runtimeReady && provider.listSkills ? provider.listSkills() : Promise.resolve([]),
-      localSkillsTask
+      localSkillsTask,
+      settingsTask
     ])
-      .then(([runtimeResult, skillsResult, localSkillsResult]) => {
+      .then(([runtimeResult, skillsResult, localSkillsResult, settingsResult]) => {
         if (cancelled) return
         setRuntimeInfo(runtimeResult.status === 'fulfilled' ? runtimeResult.value : null)
         const runtimeSkillList = skillsResult.status === 'fulfilled' ? skillsResult.value : []
@@ -715,18 +727,38 @@ export function Workbench(): ReactElement {
           localSkillsResult.status === 'fulfilled' && localSkillsResult.value.ok
             ? localSkillsResult.value.skills
             : []
-        setRuntimeSkills(mergeSkillCommands(runtimeSkillList, localSkillList))
+        const registry = settingsResult.status === 'fulfilled'
+          ? settingsResult.value?.agents.kun.skillRegistry
+          : undefined
+        setSkillRegistry(registry)
+        setAvailableSkills(mergeSkillCommands(runtimeSkillList, localSkillList))
       })
       .catch(() => {
         if (!cancelled) {
           if (!runtimeReady) setRuntimeInfo(null)
-          setRuntimeSkills([])
+          setAvailableSkills([])
         }
       })
     return () => {
       cancelled = true
     }
   }, [activeSkillWorkspace, runtimeConnection])
+
+  useEffect(() => {
+    const onSettingsChanged = (event: Event): void => {
+      const nextRegistry = (event as CustomEvent).detail?.agents?.kun?.skillRegistry as
+        | KunSkillRegistrySettingsV1
+        | undefined
+      setSkillRegistry(nextRegistry)
+    }
+    window.addEventListener(SETTINGS_CHANGED_EVENT, onSettingsChanged)
+    return () => window.removeEventListener(SETTINGS_CHANGED_EVENT, onSettingsChanged)
+  }, [])
+
+  const runtimeSkills = useMemo(
+    () => filterSkillCommandsByRegistry(availableSkills, skillRegistry),
+    [availableSkills, skillRegistry]
+  )
 
   const attachmentUploadEnabled = isChatAttachmentUploadEnabled({
     runtimeConnection,

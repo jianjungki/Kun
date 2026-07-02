@@ -1,17 +1,17 @@
-# Kun
+# PengCodex Core
 
-Kun 是 DeepSeek-GUI 的本地 HTTP/SSE 代理运行时。它为 GUI 提供稳定、类型化且 GUI 友好的代理循环合约：
+PengCodex Core 是 PengCodex 的本地 HTTP/SSE 代理运行时。它为 GUI 提供稳定、类型化且 GUI 友好的代理循环合约：
 
 - `kun serve` 会启动一个本地 HTTP 服务器，并暴露 `/v1/*` 路由。
 - 线程、回合（turn）、事件、审批和用量都会以追加写入的 JSONL 日志持久化，并配合原子化索引更新。
 - Agent 循环采用 cache-first 设计：不可变的 prompt 前缀、边界受限的 TTL/LRU 缓存、inflight 跟踪，以及显式上下文压缩。
 
-Kun 取意于《庄子·逍遥游》中的“北冥有鱼，其名为鲲”。在 DeepSeek-GUI
+PengCodex Core 取意于《庄子·逍遥游》中的“北冥有鱼，其名为鲲”。在 PengCodex
 里，它代表一个更深的本地运行时：不是把模型回复包一层 UI，而是让模型可以
 长期携带项目上下文、稳定调用工具、恢复会话，并在桌面、写作、手机连接和
 定时任务之间复用同一套 agent loop。
 
-Kun 的核心目标是提高每一个 token 的 ROI。它会尽量让 token 花在用户需求、
+PengCodex Core 的核心目标是提高每一个 token 的 ROI。它会尽量让 token 花在用户需求、
 代码、决策和结果上，而不是浪费在重复工具 schema、失控工具输出、畸形历史、
 无效重试或本可以命中的稳定前缀上。
 
@@ -66,22 +66,22 @@ kun/
 
 ```bash
 kun serve \
-  --config ~/.deepseekgui/kun/config.json \
+  --config ~/.pengcodex/runtime/config.json \
   --host 127.0.0.1 \
   --port 8899 \
-  --data-dir ~/.deepseekgui/kun \
+  --data-dir ~/.pengcodex/runtime \
   --runtime-token dev-token \
   --api-key "$DEEPSEEK_API_KEY" \
   --model deepseek-v4-pro
 ```
 
-Kun 也可以在无 GUI 的情况下独立运行：
+PengCodex Core 也可以在无 GUI 的情况下独立运行：
 
 ```bash
-kun run --data-dir ~/.deepseekgui/kun --workspace "$PWD" "summarize this repo"
-kun chat --data-dir ~/.deepseekgui/kun --workspace "$PWD"
-kun exec --data-dir ~/.deepseekgui/kun --workspace "$PWD" --list-tools
-kun exec --data-dir ~/.deepseekgui/kun --workspace "$PWD" read --args '{"path":"README.md"}'
+kun run --data-dir ~/.pengcodex/runtime --workspace "$PWD" "summarize this repo"
+kun chat --data-dir ~/.pengcodex/runtime --workspace "$PWD"
+kun exec --data-dir ~/.pengcodex/runtime --workspace "$PWD" --list-tools
+kun exec --data-dir ~/.pengcodex/runtime --workspace "$PWD" read --args '{"path":"README.md"}'
 ```
 
 - `kun run` 会创建一个线程，执行一个回合并流式输出助手文本后退出。
@@ -105,7 +105,7 @@ kun exec --data-dir ~/.deepseekgui/kun --workspace "$PWD" read --args '{"path":"
 
 ## 配置文件
 
-Kun 使用 JSON 配置文件管理运行时行为，避免重建后重配或硬编码参数。
+PengCodex Core 使用 JSON 配置文件管理运行时行为，避免重建后重配或硬编码参数。
 
 配置优先级：
 
@@ -119,7 +119,7 @@ Kun 使用 JSON 配置文件管理运行时行为，避免重建后重配或硬�
 `{data-dir}/config.json`（若存在）。GUI 默认路径是：
 
 ```text
-~/.deepseekgui/kun/config.json
+~/.pengcodex/runtime/config.json
 ```
 
 示例结构：
@@ -129,7 +129,7 @@ Kun 使用 JSON 配置文件管理运行时行为，避免重建后重配或硬�
   "serve": {
     "host": "127.0.0.1",
     "port": 8899,
-    "dataDir": "~/.deepseekgui/kun",
+    "dataDir": "~/.pengcodex/runtime",
     "runtimeToken": "",
     "apiKey": "",
     "baseUrl": "https://api.deepseek.com/beta",
@@ -228,7 +228,7 @@ Kun 使用 JSON 配置文件管理运行时行为，避免重建后重配或硬�
 }
 ```
 
-Kun 默认使用混合存储：`threads/{threadId}/messages.jsonl` 与 `events.jsonl` 是会话的标准回放日志；`index.sqlite3` 仅保存可重建的线程元数据（列表与搜索加速）。将 `serve.storage.backend` 设置为 `"file"` 可以回退到旧版 JSON 索引，或设置 `serve.storage.sqlitePath` 覆盖默认的 `{dataDir}/index.sqlite3`。
+PengCodex Core 默认使用混合存储：`threads/{threadId}/messages.jsonl` 与 `events.jsonl` 是会话的标准回放日志；`index.sqlite3` 仅保存可重建的线程元数据（列表与搜索加速）。将 `serve.storage.backend` 设置为 `"file"` 可以回退到旧版 JSON 索引，或设置 `serve.storage.sqlitePath` 覆盖默认的 `{dataDir}/index.sqlite3`。
 
 模型窗口、模型能力和模型级压缩阈值写在 `models.profiles`。内置配置已包含 `deepseek-v4-pro`、`deepseek-v4-flash` 以及兼容别名 `deepseek-chat` / `deepseek-reasoner`；DeepSeek V4 默认是 1M 上下文，并在约 980k input tokens 时开始压缩。旧的 `contextCompaction.modelProfiles` 仍会读取以兼容已有配置，但新配置请使用 `models.profiles`。更完整的文件位置、字段格式和用户自定义方式见 `../docs/KUN_CONFIG.md`。
 
@@ -327,7 +327,7 @@ SSE 使用 `id: <seq>`、`event: <kind>` 与 `data:`。新连接可通过 `since
 
 1. 保留现有 `SKILL.md`。
 2. 在同目录新增等价的 `skill.json`。
-3. 重启 Kun 或刷新诊断。
+3. 重启 PengCodex Core 或刷新诊断。
 4. 当 `/v1/runtime/tools` 报告 `lastError` 时再决定是否保留旧兼容行为。
 
 历史线程中的 `pinnedConstraints` 不会自动转到长期记忆；它们仍属于该线程的压缩历史。
@@ -344,7 +344,7 @@ SSE 使用 `id: <seq>`、`event: <kind>` 与 `data:`。新连接可通过 `since
 
 ## GUI 集成
 
-Legacy provider 退役后，主流程由 `kun-process.ts` 启动 Kun，并通过 `runtimeRequest` 使用 bearer token 调用活动 base URL。渲染层保持与旧 `AgentProvider` 的接口兼容：`agents.kun` 下保存 `binaryPath`、`port`、`autoStart`、`apiKey`、`baseUrl`、`runtimeToken`、`dataDir`、`model`、`approvalPolicy`、`sandboxMode`、`insecure`。
+Legacy provider 退役后，主流程由 `kun-process.ts` 启动 PengCodex Core，并通过 `runtimeRequest` 使用 bearer token 调用活动 base URL。渲染层保持与旧 `AgentProvider` 的接口兼容：`agents.kun` 下保存 `binaryPath`、`port`、`autoStart`、`apiKey`、`baseUrl`、`runtimeToken`、`dataDir`、`model`、`approvalPolicy`、`sandboxMode`、`insecure`。
 
 渲染层同时会消费扩展运行时接口：`/v1/runtime/info`、`/v1/runtime/tools`、`/v1/attachments/*` 与 `/v1/memory/*`。
 Composer 的图片控件仅在 `attachments` 与模型均支持时可用。

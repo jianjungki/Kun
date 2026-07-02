@@ -1,7 +1,7 @@
 {
   "name": "kun",
   "version": "0.1.0",
-  "description": "Kun local HTTP/SSE agent runtime for DeepSeek-GUI",
+  "description": "PengCodex Core local HTTP/SSE agent runtime for PengCodex",
   "type": "module",
   "private": true,
   "main": "./dist/index.js",

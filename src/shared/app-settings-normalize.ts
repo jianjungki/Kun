@@ -106,5 +106,10 @@ function shouldMigrateLegacySettings(settings: AppSettingsV1): boolean {
   const dataDir = typeof raw.agents.kun.dataDir === 'string'
     ? raw.agents.kun.dataDir.replace(/\\/g, '/').toLowerCase()
     : ''
-  return dataDir === '~/.deepseekgui/coreagent' || dataDir.endsWith('/.deepseekgui/coreagent')
+  return (
+    dataDir === '~/.deepseekgui/coreagent' ||
+    dataDir === '~/.deepseekgui/kun' ||
+    dataDir.endsWith('/.deepseekgui/coreagent') ||
+    dataDir.endsWith('/.deepseekgui/kun')
+  )
 }

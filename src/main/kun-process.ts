@@ -283,7 +283,13 @@ export async function syncGuiManagedKunConfig(
   dataDir: string,
   runtime: Pick<
     KunRuntimeSettingsV1,
-    'mcpSearch' | 'webSearch' | 'tokenEconomy' | 'storage' | 'contextCompaction' | 'runtimeTuning'
+    | 'mcpSearch'
+    | 'webSearch'
+    | 'skillRegistry'
+    | 'tokenEconomy'
+    | 'storage'
+    | 'contextCompaction'
+    | 'runtimeTuning'
   >,
   options?: {
     scheduleMcp?: {
@@ -339,7 +345,11 @@ export async function syncGuiManagedKunConfig(
     !webSearchEnabled &&
     !webSearch.apiKey.trim() &&
     !webSearch.baseUrl.trim()
-  const skillCapability = await skillCapabilityConfigForRuntime(skills, options?.scheduleMcp?.settings)
+  const skillCapability = await skillCapabilityConfigForRuntime(
+    skills,
+    options?.scheduleMcp?.settings,
+    runtime.skillRegistry
+  )
   const next = {
     serve: {
       ...serve,
@@ -431,16 +441,21 @@ function buildGuiScheduleKunMcpServer(
 
 async function skillCapabilityConfigForRuntime(
   existing: Record<string, unknown>,
-  settings?: AppSettingsV1
+  settings?: AppSettingsV1,
+  skillRegistry?: Pick<KunRuntimeSettingsV1, 'skillRegistry'>['skillRegistry']
 ): Promise<Record<string, unknown>> {
   const roots = uniqueStrings([
     ...stringArrayValue(existing.roots).map(normalizeSkillRootPath),
     ...(await guiSkillRootsForRuntime(settings)).map((root) => root.path)
   ])
+  const enabledSkillIds = skillRegistry?.activationMode === 'selected'
+    ? uniqueStrings(skillRegistry.activeSkillIds.map((id) => id.trim()).filter(Boolean))
+    : []
   return {
     ...existing,
     enabled: existing.enabled === false ? false : roots.length > 0 || existing.enabled === true,
     roots,
+    enabledSkillIds,
     legacySkillMd: existing.legacySkillMd === false ? false : true
   }
 }

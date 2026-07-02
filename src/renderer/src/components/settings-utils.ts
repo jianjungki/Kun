@@ -24,7 +24,7 @@ import type { GuiUpdateInfo } from '@shared/gui-update'
 type RendererSettingsShape = AppSettingsPatch
 type SettingsPatch = AppSettingsPatch
 
-export const DEFAULT_WORKSPACE_ROOT = '~/.deepseekgui/default_workspace'
+export const DEFAULT_WORKSPACE_ROOT = '~/.pengcodex/default_workspace'
 
 export function splitSettingsList(raw: string): string[] {
   return raw

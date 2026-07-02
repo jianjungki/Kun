@@ -17,6 +17,7 @@ import {
   type KunRuntimeSettingsV1,
   type KunSettingsEnvelopePatchV1,
   type KunSettingsEnvelopeV1,
+  type KunSkillRegistrySettingsV1,
   type KunStorageSettingsV1,
   type KunTokenEconomySettingsV1,
   type KunWebSearchSettingsV1,
@@ -30,6 +31,7 @@ import {
 } from './app-settings-provider'
 
 const LEGACY_COREAGENT_DATA_DIR = '~/.deepseekgui/coreagent'
+const LEGACY_DEEPSEEK_GUI_KUN_DATA_DIR = '~/.deepseekgui/kun'
 const LEGACY_KUN_DEFAULT_MODEL = 'deepseek-chat'
 const LEGACY_LOCAL_HTTP_DEFAULT_PORT = 7878
 
@@ -110,6 +112,7 @@ export function defaultKunRuntimeSettings(
     insecure: false,
     mcpSearch: defaultKunMcpSearchSettings(),
     webSearch: defaultKunWebSearchSettings(),
+    skillRegistry: defaultKunSkillRegistrySettings(),
     storage: defaultKunStorageSettings(),
     contextCompaction: defaultKunContextCompactionSettings(),
     runtimeTuning: defaultKunRuntimeTuningSettings(),
@@ -131,6 +134,13 @@ export function defaultKunWebSearchSettings(): KunWebSearchSettingsV1 {
     baseUrl: '',
     allowDomains: [],
     denyDomains: []
+  }
+}
+
+export function defaultKunSkillRegistrySettings(): KunSkillRegistrySettingsV1 {
+  return {
+    activationMode: 'all',
+    activeSkillIds: []
   }
 }
 
@@ -230,6 +240,11 @@ export function mergeKunRuntimeSettings(
     ...currentWebSearch,
     ...(patch?.webSearch ?? {})
   })
+  const currentSkillRegistry = normalizeKunSkillRegistrySettings(current.skillRegistry)
+  const nextSkillRegistry = normalizeKunSkillRegistrySettings({
+    ...currentSkillRegistry,
+    ...(patch?.skillRegistry ?? {})
+  })
   const currentTokenEconomy = normalizeKunTokenEconomySettings(
     current.tokenEconomy,
     current.tokenEconomyMode
@@ -284,6 +299,7 @@ export function mergeKunRuntimeSettings(
     tokenEconomy: nextTokenEconomy,
     mcpSearch: nextMcpSearch,
     webSearch: nextWebSearch,
+    skillRegistry: nextSkillRegistry,
     storage: nextStorage,
     contextCompaction: nextContextCompaction,
     runtimeTuning: nextRuntimeTuning,
@@ -291,6 +307,15 @@ export function mergeKunRuntimeSettings(
       typeof patch?.cacheEngineMode === 'string'
         ? patch.cacheEngineMode
         : current.cacheEngineMode ?? DEFAULT_CACHE_ENGINE_MODE
+  }
+}
+
+function normalizeKunSkillRegistrySettings(
+  input: Partial<KunSkillRegistrySettingsV1> | undefined
+): KunSkillRegistrySettingsV1 {
+  return {
+    activationMode: input?.activationMode === 'selected' ? 'selected' : 'all',
+    activeSkillIds: uniqueStrings(normalizeStringList(input?.activeSkillIds)).slice(0, 256)
   }
 }
 
@@ -348,6 +373,17 @@ function normalizeStringList(value: unknown): string[] {
   return value
     .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
     .map((item) => item.trim())
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const value of values) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    out.push(value)
+  }
+  return out
 }
 
 function normalizeKunHistoryHygieneSettings(
@@ -519,7 +555,9 @@ function upgradeLegacyKunDefaultDataDir(value: unknown): string {
   if (
     !trimmed ||
     normalized === LEGACY_COREAGENT_DATA_DIR ||
-    normalized.endsWith('/.deepseekgui/coreagent')
+    normalized === LEGACY_DEEPSEEK_GUI_KUN_DATA_DIR ||
+    normalized.endsWith('/.deepseekgui/coreagent') ||
+    normalized.endsWith('/.deepseekgui/kun')
   ) {
     return DEFAULT_KUN_DATA_DIR
   }
@@ -595,6 +633,7 @@ export function migrateLegacyAppSettings(parsed: LegacyAppSettingsShape): Partia
     ),
     mcpSearch: normalizeKunMcpSearchSettings(explicitKun.mcpSearch),
     webSearch: normalizeKunWebSearchSettings(explicitKun.webSearch),
+    skillRegistry: normalizeKunSkillRegistrySettings(explicitKun.skillRegistry),
     storage: normalizeKunStorageSettings(explicitKun.storage),
     contextCompaction: normalizeKunContextCompactionSettings(explicitKun.contextCompaction),
     runtimeTuning: normalizeKunRuntimeTuningSettings(explicitKun.runtimeTuning)

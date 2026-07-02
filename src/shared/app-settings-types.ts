@@ -36,8 +36,8 @@ export const SCHEDULE_MODEL_IDS = CLAW_MODEL_IDS
 export const DEFAULT_SCHEDULE_REASONING_EFFORT = 'medium'
 export const SCHEDULE_REASONING_EFFORT_IDS = ['off', 'low', 'medium', 'high', 'max'] as const
 export const DEFAULT_SCHEDULE_INTERNAL_PORT = 8788
-export const DEFAULT_WRITE_WORKSPACE_ROOT = '~/.deepseekgui/write_workspace'
-export const DEFAULT_KUN_DATA_DIR = '~/.deepseekgui/kun'
+export const DEFAULT_WRITE_WORKSPACE_ROOT = '~/.pengcodex/write_workspace'
+export const DEFAULT_KUN_DATA_DIR = '~/.pengcodex/runtime'
 export const DEFAULT_KUN_MODEL = 'deepseek-v4-pro'
 export const DEFAULT_WRITE_INLINE_COMPLETION_BASE_URL = 'https://api.deepseek.com/beta'
 export const DEFAULT_WRITE_INLINE_COMPLETION_MODEL = 'deepseek-v4-flash'
@@ -102,6 +102,8 @@ export type KunRuntimeSettingsV1 = {
   mcpSearch: KunMcpSearchSettingsV1
   /** GUI-managed web fetch/search settings written into Kun config.json. */
   webSearch: KunWebSearchSettingsV1
+  /** GUI-managed Skill registry activation settings written into Kun config.json. */
+  skillRegistry: KunSkillRegistrySettingsV1
   /** Persistent store backend used by Kun. */
   storage: KunStorageSettingsV1
   /** Fallback compaction thresholds and summary behavior. Per-model thresholds live in Kun config models.profiles. */
@@ -136,6 +138,13 @@ export type KunWebSearchSettingsV1 = {
   baseUrl: string
   allowDomains: string[]
   denyDomains: string[]
+}
+
+export type KunSkillRegistryActivationMode = 'all' | 'selected'
+
+export type KunSkillRegistrySettingsV1 = {
+  activationMode: KunSkillRegistryActivationMode
+  activeSkillIds: string[]
 }
 
 export type KunStorageBackend = 'hybrid' | 'file'
@@ -214,11 +223,18 @@ export type KunTokenEconomySettingsPatchV1 = Partial<
 export type KunRuntimeSettingsPatchV1 = Partial<
   Omit<
     KunRuntimeSettingsV1,
-    'mcpSearch' | 'webSearch' | 'storage' | 'contextCompaction' | 'runtimeTuning' | 'tokenEconomy'
+    | 'mcpSearch'
+    | 'webSearch'
+    | 'skillRegistry'
+    | 'storage'
+    | 'contextCompaction'
+    | 'runtimeTuning'
+    | 'tokenEconomy'
   >
 > & {
   mcpSearch?: Partial<KunMcpSearchSettingsV1>
   webSearch?: Partial<KunWebSearchSettingsV1>
+  skillRegistry?: Partial<KunSkillRegistrySettingsV1>
   tokenEconomy?: KunTokenEconomySettingsPatchV1
   storage?: Partial<KunStorageSettingsV1>
   contextCompaction?: Partial<KunContextCompactionSettingsV1>

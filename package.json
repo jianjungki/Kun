@@ -1,8 +1,8 @@
 {
-  "name": "deepseek-gui",
-  "productName": "DeepSeek GUI",
+  "name": "pengcodex",
+  "productName": "PengCodex",
   "version": "0.1.0",
-  "description": "Electron workbench for the Kun runtime (HTTP/SSE)",
+  "description": "Local-first desktop AI workbench for PengCodex Core (HTTP/SSE)",
   "main": "./out/main/index.js",
   "type": "module",
   "scripts": {
@@ -13,8 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "dist": "npm run build && npx --yes electron-builder@26.8.1 --config electron-builder.config.cjs --publish never",
-    "dist:mac": "rm -f dist/DeepSeek-GUI-*-mac-* dist/latest-mac.yml && npm run build && npm run dist:mac:x64:dmg && npm run dist:mac:x64:zip && npm run dist:mac:arm64:dmg && npm run dist:mac:arm64:zip && node ./scripts/generate-mac-latest.cjs dist",
-    "dist:mac:signed": "rm -f dist/DeepSeek-GUI-*-mac-* dist/latest-mac.yml && MAC_SIGN=1 npm run dist:mac:x64 && MAC_SIGN=1 npm run dist:mac:arm64 && node ./scripts/generate-mac-latest.cjs dist",
+    "dist:mac": "rm -f dist/PengCodex-*-mac-* dist/latest-mac.yml && npm run build && npm run dist:mac:x64:dmg && npm run dist:mac:x64:zip && npm run dist:mac:arm64:dmg && npm run dist:mac:arm64:zip && node ./scripts/generate-mac-latest.cjs dist",
+    "dist:mac:signed": "rm -f dist/PengCodex-*-mac-* dist/latest-mac.yml && MAC_SIGN=1 npm run dist:mac:x64 && MAC_SIGN=1 npm run dist:mac:arm64 && node ./scripts/generate-mac-latest.cjs dist",
     "dist:mac:arm64": "npm run build && npm run dist:mac:arm64:dmg && npm run dist:mac:arm64:zip",
     "dist:mac:x64": "npm run build && npm run dist:mac:x64:dmg && npm run dist:mac:x64:zip",
     "dist:mac:arm64:dmg": "npx --yes electron-builder@26.8.1 --config electron-builder.config.cjs --publish never --mac dmg --arm64",
@@ -87,10 +87,10 @@
     "vite": "^6.2.0",
     "vitest": "^4.1.7"
   },
-  "author": "DeepSeek GUI Contributors",
-  "homepage": "https://deepseek-gui.com",
+  "author": "PengCodex Contributors",
+  "homepage": "https://github.com/XingYu-Zhong/PengCodex",
   "repository": {
     "type": "git",
-    "url": "https://github.com/XingYu-Zhong/DeepSeek-GUI.git"
+    "url": "https://github.com/XingYu-Zhong/PengCodex.git"
   }
 }

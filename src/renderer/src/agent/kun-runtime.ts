@@ -8,7 +8,7 @@ import type {
   ThreadUsageSnapshot,
   UserInputAnswer
 } from './types'
-import { getKunRuntimeSettings } from '@shared/app-settings'
+import { getKunRuntimeSettings, type CacheEngineMode } from '@shared/app-settings'
 import {
   KUN_ATTACHMENT_DIAGNOSTICS_PATH,
   KUN_ATTACHMENTS_PATH,
@@ -141,6 +141,7 @@ export class KunRuntimeProvider implements AgentProvider {
     workspace?: string
     title?: string
     mode?: KunThreadMode
+    cacheEngineMode?: CacheEngineMode
   }): Promise<NormalizedThread> {
     const settings = await rendererRuntimeClient.getSettings()
     const runtime = getKunRuntimeSettings(settings)
@@ -152,6 +153,7 @@ export class KunRuntimeProvider implements AgentProvider {
         title: input.title,
         model: runtime.model,
         mode: normalizeThreadMode(input.mode),
+        cacheEngineMode: input.cacheEngineMode ?? runtime.cacheEngineMode,
         approvalPolicy: runtime.approvalPolicy,
         sandboxMode: runtime.sandboxMode
       })

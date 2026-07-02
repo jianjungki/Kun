@@ -1,27 +1,27 @@
-# Kun Agent 与模型配置说明
+# PengCodex Core Agent 与模型配置说明
 
-本文说明 DeepSeek GUI / Kun 的本地配置文件在哪里、哪些字段由 UI 管理、哪些字段适合手工扩展，以及模型上下文压缩阈值应该如何配置。
+本文说明 PengCodex / PengCodex Core 的本地配置文件在哪里、哪些字段由 UI 管理、哪些字段适合手工扩展，以及模型上下文压缩阈值应该如何配置。
 
 ## 配置文件分层
 
-DeepSeek GUI 有两层配置。
+PengCodex 有两层配置。
 
 1. GUI settings
 
    这是桌面应用自己的设置文件，保存设置页里的 Agent 运行时选项。
 
-   - macOS: `~/Library/Application Support/DeepSeek GUI/deepseek-gui-settings.json`
-   - Windows: `%APPDATA%/DeepSeek GUI/deepseek-gui-settings.json`
-   - Linux: `~/.config/DeepSeek GUI/deepseek-gui-settings.json`
+   - macOS: `~/Library/Application Support/PengCodex/pengcodex-settings.json`
+   - Windows: `%APPDATA%/PengCodex/pengcodex-settings.json`
+   - Linux: `~/.config/PengCodex/pengcodex-settings.json`
 
    Agent 运行时设置在 `agents.kun` 下，例如端口、data dir、默认模型、审批策略、sandbox、token economy 等。多数用户通过设置页修改这些字段。
 
-2. Kun runtime config
+2. PengCodex Core runtime config
 
-   这是 Kun 本地运行时读取的高级配置文件。默认路径是：
+   这是 PengCodex Core 本地运行时读取的高级配置文件。默认路径是：
 
    ```text
-   ~/.deepseekgui/kun/config.json
+   ~/.pengcodex/runtime/config.json
    ```
 
    如果 `agents.kun.dataDir` 改成了别的目录，实际路径就是：
@@ -30,15 +30,15 @@ DeepSeek GUI 有两层配置。
    <dataDir>/config.json
    ```
 
-   `kun serve --config <path>` 可以显式指定配置文件；如果没有指定，Kun 会尝试读取 `{dataDir}/config.json`。
+   `kun serve --config <path>` 可以显式指定配置文件；如果没有指定，PengCodex Core 会尝试读取 `{dataDir}/config.json`。
 
 ## 启动时的读取顺序
 
-GUI 启动 Kun 时会按下面的顺序合并配置。
+GUI 启动 PengCodex Core 时会按下面的顺序合并配置。
 
-1. GUI 读取 `deepseek-gui-settings.json`，得到 `agents.kun` 和通用 provider 配置。
-2. GUI 在启动 Kun 前同步 `<dataDir>/config.json`，写入 UI 管理的 token economy、默认压缩摘要参数、默认模型 profiles、runtime tuning、MCP search 和附件能力。
-3. Kun serve 读取 `<dataDir>/config.json` 或 `--config` 指定的文件。
+1. GUI 读取 `pengcodex-settings.json`，得到 `agents.kun` 和通用 provider 配置。
+2. GUI 在启动 PengCodex Core 前同步 `<dataDir>/config.json`，写入 UI 管理的 token economy、默认压缩摘要参数、默认模型 profiles、runtime tuning、MCP search 和附件能力。
+3. PengCodex Core serve 读取 `<dataDir>/config.json` 或 `--config` 指定的文件。
 4. CLI 参数和环境变量会覆盖 `serve` 里的基础启动字段，例如 `--model`、`--port`、`KUN_MODEL`、`KUN_PORT`。
 5. AgentLoop、review loop 和子 Agent 都从同一份模型配置加载模型能力与上下文压缩阈值。
 
@@ -49,7 +49,7 @@ GUI 启动 Kun 时会按下面的顺序合并配置。
   "serve": {
     "host": "127.0.0.1",
     "port": 8899,
-    "dataDir": "~/.deepseekgui/kun",
+    "dataDir": "~/.pengcodex/runtime",
     "runtimeToken": "",
     "apiKey": "",
     "baseUrl": "https://api.deepseek.com/beta",
@@ -127,7 +127,7 @@ GUI 启动 Kun 时会按下面的顺序合并配置。
 
 ## 默认模型 profile
 
-Kun 内置 DeepSeek V4 默认模型画像：
+PengCodex Core 内置 DeepSeek V4 默认模型画像：
 
 ```json
 {
@@ -200,7 +200,7 @@ Kun 内置 DeepSeek V4 默认模型画像：
       "binaryPath": "",
       "port": 8899,
       "autoStart": true,
-      "dataDir": "~/.deepseekgui/kun",
+      "dataDir": "~/.pengcodex/runtime",
       "model": "deepseek-v4-pro",
       "approvalPolicy": "auto",
       "sandboxMode": "workspace-write",
@@ -211,7 +211,7 @@ Kun 内置 DeepSeek V4 默认模型画像：
 }
 ```
 
-设置页会保存这些字段。GUI 模式下默认模型以 `agents.kun.model` 为准；`config.json` 里的 `serve.model` 更适合 standalone `kun serve` 使用，因为 GUI 启动时会把设置页里的模型作为启动参数传给 Kun。
+设置页会保存这些字段。GUI 模式下默认模型以 `agents.kun.model` 为准；`config.json` 里的 `serve.model` 更适合 standalone `kun serve` 使用，因为 GUI 启动时会把设置页里的模型作为启动参数传给 PengCodex Core。
 
 ## 用户如何自定义
 
@@ -220,7 +220,7 @@ Kun 内置 DeepSeek V4 默认模型画像：
 1. 在设置页修改端口、data dir、默认模型、审批策略、sandbox 和 token economy。
 2. 打开 `<dataDir>/config.json`，在 `models.profiles` 里增加或覆盖模型 profile。
 3. 如果要把自定义模型作为 GUI 默认模型，把 `agents.kun.model` 改成该模型 ID。
-4. 重启 Kun runtime，让新配置生效。
+4. 重启 PengCodex Core runtime，让新配置生效。
 
 自定义 1M 模型并在 950k 左右开始压缩：
 
@@ -295,7 +295,7 @@ Kun 内置 DeepSeek V4 默认模型画像：
 
 - 默认 GUI Agent 设置：`src/shared/app-settings-kun.ts`
 - GUI 同步 `<dataDir>/config.json`：`src/main/kun-process.ts`
-- Kun config schema：`kun/src/config/kun-config.ts`
+- PengCodex Core config schema：`kun/src/config/kun-config.ts`
 - 模型 profile 解析：`kun/src/loop/model-context-profile.ts`
 - 上下文压缩器：`kun/src/loop/context-compactor.ts`
 - serve 解析入口：`kun/src/cli/serve.ts`
