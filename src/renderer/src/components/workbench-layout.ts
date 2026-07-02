@@ -3,17 +3,21 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { WorkspaceFileTarget } from '@shared/workspace-file'
 import type { AppRoute } from '../store/chat-store-types'
 import {
-  readBrowserStorageItem,
+  readBrowserStorageItemWithLegacy,
   removeBrowserStorageItem,
   writeBrowserStorageItem
 } from '../lib/browser-storage'
 import { WORKSPACE_FILE_PREVIEW_EVENT, type WorkspaceFilePreviewDetail } from '../lib/workspace-file-preview'
 import type { RightPanelMode } from './chat/WorkbenchTopBar'
 
-const LEFT_PANEL_WIDTH_KEY = 'deepseekgui.layout.leftSidebarWidth'
-const LEFT_PANEL_COLLAPSED_KEY = 'deepseekgui.layout.leftSidebarCollapsed'
-const RIGHT_PANEL_WIDTH_KEY = 'deepseekgui.layout.rightInspectorWidth'
-const RIGHT_PANEL_MODE_KEY = 'deepseekgui.layout.rightPanelMode'
+const LEFT_PANEL_WIDTH_KEY = 'pengcodex.layout.leftSidebarWidth'
+const LEFT_PANEL_COLLAPSED_KEY = 'pengcodex.layout.leftSidebarCollapsed'
+const RIGHT_PANEL_WIDTH_KEY = 'pengcodex.layout.rightInspectorWidth'
+const RIGHT_PANEL_MODE_KEY = 'pengcodex.layout.rightPanelMode'
+const LEGACY_LEFT_PANEL_WIDTH_KEY = 'deepseekgui.layout.leftSidebarWidth'
+const LEGACY_LEFT_PANEL_COLLAPSED_KEY = 'deepseekgui.layout.leftSidebarCollapsed'
+const LEGACY_RIGHT_PANEL_WIDTH_KEY = 'deepseekgui.layout.rightInspectorWidth'
+const LEGACY_RIGHT_PANEL_MODE_KEY = 'deepseekgui.layout.rightPanelMode'
 const LEFT_PANEL_DEFAULT = 304
 const RIGHT_PANEL_DEFAULT = 360
 export const CODE_PANEL_PREFERRED = 560
@@ -29,8 +33,16 @@ function clampWidth(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
+function legacyLayoutKey(key: string): string[] {
+  if (key === LEFT_PANEL_WIDTH_KEY) return [LEGACY_LEFT_PANEL_WIDTH_KEY]
+  if (key === LEFT_PANEL_COLLAPSED_KEY) return [LEGACY_LEFT_PANEL_COLLAPSED_KEY]
+  if (key === RIGHT_PANEL_WIDTH_KEY) return [LEGACY_RIGHT_PANEL_WIDTH_KEY]
+  if (key === RIGHT_PANEL_MODE_KEY) return [LEGACY_RIGHT_PANEL_MODE_KEY]
+  return []
+}
+
 function readStoredWidth(key: string, fallback: number): number {
-  const raw = readBrowserStorageItem(key)
+  const raw = readBrowserStorageItemWithLegacy(key, legacyLayoutKey(key))
   if (!raw) return fallback
   const parsed = Number(raw)
   if (!Number.isFinite(parsed)) return fallback
@@ -42,7 +54,7 @@ function persistWidth(key: string, width: number): void {
 }
 
 function readStoredBoolean(key: string, fallback: boolean): boolean {
-  const raw = readBrowserStorageItem(key)
+  const raw = readBrowserStorageItemWithLegacy(key, legacyLayoutKey(key))
   if (raw === '1') return true
   if (raw === '0') return false
   return fallback
@@ -53,7 +65,7 @@ function persistBoolean(key: string, value: boolean): void {
 }
 
 function readStoredRightPanelMode(): RightPanelMode {
-  const raw = readBrowserStorageItem(RIGHT_PANEL_MODE_KEY)
+  const raw = readBrowserStorageItemWithLegacy(RIGHT_PANEL_MODE_KEY, [LEGACY_RIGHT_PANEL_MODE_KEY])
   return raw === 'todo' || raw === 'changes' || raw === 'browser' ? raw : null
 }
 

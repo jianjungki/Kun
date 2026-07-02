@@ -137,7 +137,7 @@ export const CLAW_AGENT_TABS: Array<{
   }
 ]
 
-export const DEFAULT_CLAW_WORKSPACE_ROOT = '~/.deepseekgui/claw'
+export const DEFAULT_CLAW_WORKSPACE_ROOT = '~/.pengcodex/claw'
 
 export const CLAW_DIALOG_STEPS: Array<{
   id: ClawDialogStep

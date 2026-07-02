@@ -17,7 +17,7 @@ function getNotaryCredentials() {
     return { keyId, issuer, keyPath, cleanup: null }
   }
 
-  const tempDir = mkdtempSync(join(tmpdir(), 'deepseek-gui-notary-'))
+  const tempDir = mkdtempSync(join(tmpdir(), 'pengcodex-notary-'))
   const tempKeyPath = join(tempDir, `AuthKey_${keyId}.p8`)
   writeFileSync(tempKeyPath, Buffer.from(keyBase64, 'base64'))
 
@@ -48,7 +48,9 @@ function isBundleLike(path) {
 
 function isLikelySignedFile(path, info) {
   if (/\.(dylib|node|so)$/i.test(path)) return true
-  return info.isFile() && (info.mode & 0o111) !== 0 && /\/Contents\/(?:MacOS|Frameworks)\//.test(path)
+  const normalized = path.replace(/\\/g, '/')
+  if (info.isFile() && /\/Contents\/MacOS\//.test(normalized)) return true
+  return info.isFile() && (info.mode & 0o111) !== 0 && /\/Contents\/Frameworks\//.test(normalized)
 }
 
 function collectSignedCodeCandidates(appBundle) {

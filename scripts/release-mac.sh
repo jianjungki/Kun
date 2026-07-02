@@ -96,7 +96,7 @@ copy_mac_arch_artifacts() {
   local files=()
 
   shopt -s nullglob
-  files=("${output_dir}"/DeepSeek-GUI-*-mac-"${arch}".*)
+  files=("${output_dir}"/PengCodex-*-mac-"${arch}".*)
   shopt -u nullglob
 
   [[ ${#files[@]} -gt 0 ]] || die "No macOS ${arch} artifacts found in ${output_dir}"
@@ -248,11 +248,11 @@ collect_optional() {
 }
 
 # artifactName: ${productName}-${version}-mac-${arch}.dmg|zip
-collect "macOS arm64 dmg" "dist/DeepSeek-GUI-*-mac-arm64.dmg"
-collect "macOS x64 dmg" "dist/DeepSeek-GUI-*-mac-x64.dmg"
-collect "macOS arm64 zip" "dist/DeepSeek-GUI-*-mac-arm64.zip"
-collect "macOS x64 zip" "dist/DeepSeek-GUI-*-mac-x64.zip"
-collect_optional "macOS blockmap" "dist/DeepSeek-GUI-*-mac-*.zip.blockmap"
+collect "macOS arm64 dmg" "dist/PengCodex-*-mac-arm64.dmg"
+collect "macOS x64 dmg" "dist/PengCodex-*-mac-x64.dmg"
+collect "macOS arm64 zip" "dist/PengCodex-*-mac-arm64.zip"
+collect "macOS x64 zip" "dist/PengCodex-*-mac-x64.zip"
+collect_optional "macOS blockmap" "dist/PengCodex-*-mac-*.zip.blockmap"
 
 upload_github_assets() {
   local tag="$1"
@@ -308,7 +308,7 @@ This is an unsigned build. macOS Gatekeeper will block first launch.
 Run this after downloading:
 
 ```sh
-xattr -cr "DeepSeek GUI.app"
+xattr -cr "PengCodex.app"
 # or
 npm run mac:unquarantine
 ```
@@ -357,4 +357,4 @@ green "macOS release ${TAG_NAME} ready (draft)."
 cyan "  Meta: dist/.release-meta.env"
 cyan "  Channel: ${RELEASE_CHANNEL}"
 cyan "  Next on Windows: ./scripts/release-win.sh --tag ${TAG_NAME} --channel ${RELEASE_CHANNEL}"
-cyan "  https://github.com/XingYu-Zhong/DeepSeek-GUI/releases/tag/${TAG_NAME}"
+cyan "  https://github.com/XingYu-Zhong/PengCodex/releases/tag/${TAG_NAME}"

@@ -61,7 +61,7 @@ type LegacyReasoningRuntimeSettingsV1 = {
 }
 
 /**
- * Kun runtime settings. Mirrors the `kun serve` CLI
+ * PengCodex Core runtime settings. Mirrors the `kun serve` CLI
  * options. It is the only active agent settings object the GUI
  * stores after legacy settings have been migrated.
  */
@@ -640,7 +640,7 @@ export function migrateLegacyAppSettings(parsed: LegacyAppSettingsShape): Partia
   }
   // Strip the legacy `agentProvider` discriminator and the legacy
   // per-provider settings from the surfaced migration result. The
-  // runtime now has a single agent (Kun) and we no longer
+  // runtime now has a single agent (PengCodex Core) and we no longer
   // round-trip the legacy value into the new settings shape.
   const { deepseek: _legacyDeepseek, agents: _agents, agentProvider: _agentProvider, ...rest } = parsed
   void _legacyDeepseek

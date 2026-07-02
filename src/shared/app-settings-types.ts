@@ -94,19 +94,19 @@ export type KunRuntimeSettingsV1 = {
   sandboxMode: SandboxMode
   /** Compress safe tool context before each model call. */
   tokenEconomyMode: boolean
-  /** Detailed token-saving behavior used when building Kun model requests. */
+  /** Detailed token-saving behavior used when building PengCodex Core model requests. */
   tokenEconomy: KunTokenEconomySettingsV1
   /** When true, the runtime skips bearer-token auth. Local dev only. */
   insecure: boolean
-  /** GUI-managed MCP progressive discovery/search settings written into Kun config.json. */
+  /** GUI-managed MCP progressive discovery/search settings written into PengCodex Core config.json. */
   mcpSearch: KunMcpSearchSettingsV1
-  /** GUI-managed web fetch/search settings written into Kun config.json. */
+  /** GUI-managed web fetch/search settings written into PengCodex Core config.json. */
   webSearch: KunWebSearchSettingsV1
-  /** GUI-managed Skill registry activation settings written into Kun config.json. */
+  /** GUI-managed Skill registry activation settings written into PengCodex Core config.json. */
   skillRegistry: KunSkillRegistrySettingsV1
-  /** Persistent store backend used by Kun. */
+  /** Persistent store backend used by PengCodex Core. */
   storage: KunStorageSettingsV1
-  /** Fallback compaction thresholds and summary behavior. Per-model thresholds live in Kun config models.profiles. */
+  /** Fallback compaction thresholds and summary behavior. Per-model thresholds live in PengCodex Core config models.profiles. */
   contextCompaction: KunContextCompactionSettingsV1
   /** Low-level loop guards and model argument repair tuning. */
   runtimeTuning: KunRuntimeTuningSettingsV1
@@ -397,7 +397,7 @@ export type ClawImConversationV1 = {
   latestMessageId: string
   senderId: string
   senderName: string
-  /** Kun thread id this conversation maps to. */
+  /** PengCodex Core thread id this conversation maps to. */
   localThreadId: string
   workspaceRoot: string
   createdAt: string
@@ -410,7 +410,7 @@ export type ClawImChannelV1 = {
   label: string
   enabled: boolean
   model: string
-  /** Kun thread id this channel maps to. */
+  /** PengCodex Core thread id this channel maps to. */
   threadId: string
   workspaceRoot: string
   agentProfile: ClawImAgentProfileV1
@@ -435,7 +435,7 @@ export type WriteInlineCompletionSettingsV1 = {
   longCompletionEnabled: boolean
   apiKey: string
   baseUrl: string
-  /** When true, Write inherits Kun's runtime model instead of using `model` as an override. */
+  /** When true, Write inherits PengCodex Core's runtime model instead of using `model` as an override. */
   inheritModel: boolean
   model: string
   debounceMs: number

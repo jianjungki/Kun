@@ -1,5 +1,5 @@
 /**
- * Kun HTTP endpoint path templates. The renderer and the main
+ * PengCodex Core HTTP endpoint path templates. The renderer and the main
  * process IPC allow-list both derive their paths from this table, so
  * adding a new endpoint is a one-file change.
  *
@@ -113,7 +113,7 @@ export function kunSessionResumePath(sessionId: string): string {
 export const KUN_USAGE_PATH = '/v1/usage'
 export const KUN_USAGE_TEMPLATE = '/v1/usage'
 
-/** Thread mode shared with the Kun contract. */
+/** Thread mode shared with the PengCodex Core contract. */
 export type KunThreadMode = 'agent' | 'plan'
 
 const THREAD_MODES: ReadonlySet<KunThreadMode> = new Set<KunThreadMode>(['agent', 'plan'])

@@ -88,7 +88,7 @@ function readRuntimeJson<T>(body: string, fallback: string): T {
 }
 
 /**
- * GUI-side adapter for the Kun HTTP/SSE contract.
+ * GUI-side adapter for the PengCodex Core HTTP/SSE contract.
  *
  * The provider owns renderer orchestration only: HTTP calls, SSE
  * reconnection, and approval policy decisions. DTO and chat-block
@@ -96,7 +96,7 @@ function readRuntimeJson<T>(body: string, fallback: string): T {
  */
 export class KunRuntimeProvider implements AgentProvider {
   readonly id = 'kun' as const
-  readonly displayName = 'Kun'
+  readonly displayName = 'PengCodex Core'
 
   getCapabilities(): {
     interrupt: boolean

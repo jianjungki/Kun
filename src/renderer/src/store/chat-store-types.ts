@@ -31,7 +31,7 @@ export type QueuedUserMessage = {
   attachmentIds?: string[]
   attachments?: AttachmentReference[]
   /**
-   * Optional GUI plan context forwarded to Kun. The renderer
+   * Optional GUI plan context forwarded to PengCodex Core. The renderer
    * attaches it for plan/refine turns so the runtime can advertise
    * the native `create_plan` tool and gate the write to the reserved
    * plan artifact.
@@ -48,7 +48,7 @@ export type QueuedUserMessage = {
 
 /**
  * GUI plan context attached to a send-message call. Mirrors the
- * Kun `GuiPlanContextSchema` and is forwarded to the runtime
+ * PengCodex Core `GuiPlanContextSchema` and is forwarded to the runtime
  * request body so plan/refine turns are scoped to a reserved path.
  */
 export type GuiPlanMessageContext = {

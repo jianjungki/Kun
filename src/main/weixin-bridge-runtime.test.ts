@@ -5,7 +5,7 @@ import { weixinBridgeRuntimeInternals } from './weixin-bridge-runtime'
 vi.mock('electron', () => ({
   app: {
     isPackaged: false,
-    getPath: () => '/tmp/deepseek-gui-test-user-data',
+    getPath: () => '/tmp/pengcodex-test-user-data',
     getVersion: () => '0.2.0-test'
   }
 }))
@@ -21,7 +21,7 @@ describe('weixin bridge runtime', () => {
 
     expect(baseInfo).toMatchObject({
       channel_version: pkg.version,
-      bot_agent: 'DeepSeekGUI/0.2.0-test'
+      bot_agent: 'PengCodex/0.2.0-test'
     })
   })
 

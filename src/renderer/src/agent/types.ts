@@ -343,7 +343,7 @@ export type ThreadDeltaEvent = {
   seq?: number
 }
 
-/** Cumulative usage/cost for a Kun thread. */
+/** Cumulative usage/cost for a PengCodex Core thread. */
 export type ThreadUsageSnapshot = {
   inputTokens: number
   outputTokens: number

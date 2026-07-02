@@ -386,7 +386,7 @@ export type CoreReviewOutputJson = {
 
 /**
  * Structured plan metadata the renderer expects on a successful
- * `create_plan` tool result. Mirrors the Kun output contract
+ * `create_plan` tool result. Mirrors the PengCodex Core output contract
  * so the Workbench can reload the saved plan file and update the
  * Plan panel without parsing assistant prose.
  */
@@ -438,7 +438,7 @@ export type CoreResumeSessionResponseJson = {
 
 /**
  * Optional plan context attached to a start-turn request. Carries the
- * reserved plan id, workspace root, and relative path the Kun
+ * reserved plan id, workspace root, and relative path the PengCodex Core
  * should expose to the model via the `create_plan` tool.
  */
 export type CoreStartTurnPlanContextJson = {
@@ -451,7 +451,7 @@ export type CoreStartTurnPlanContextJson = {
 }
 
 /**
- * Native Kun plan tool name. Re-exported alongside the shared
+ * Native PengCodex Core plan tool name. Re-exported alongside the shared
  * constant for renderer consumers.
  */
 export const CORE_PLAN_TOOL_NAME = GUI_PLAN_CREATE_PLAN_TOOL_NAME

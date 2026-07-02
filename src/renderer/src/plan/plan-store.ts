@@ -51,8 +51,10 @@ export type GuiPlanState = {
   clearActivePlan: () => void
 }
 
-const PLAN_REGISTRY_STORAGE_KEY = 'deepseekgui.plan.registry.v1'
-const PLAN_PREVIEW_MODE_STORAGE_KEY = 'deepseekgui.plan.previewMode'
+const PLAN_REGISTRY_STORAGE_KEY = 'pengcodex.plan.registry.v1'
+const LEGACY_PLAN_REGISTRY_STORAGE_KEY = 'deepseekgui.plan.registry.v1'
+const PLAN_PREVIEW_MODE_STORAGE_KEY = 'pengcodex.plan.previewMode'
+const LEGACY_PLAN_PREVIEW_MODE_STORAGE_KEY = 'deepseekgui.plan.previewMode'
 
 function normalizeWorkspaceRoot(value: string | undefined | null): string {
   return (value ?? '').trim().replaceAll('\\', '/').replace(/\/+$/, '')
@@ -138,7 +140,7 @@ function normalizePlanRegistry(raw: unknown): PersistedPlanRegistry {
 function readRegistry(storage = browserStorage()): PersistedPlanRegistry {
   if (!storage) return emptyRegistry()
   try {
-    const raw = storage.getItem(PLAN_REGISTRY_STORAGE_KEY)
+    const raw = storage.getItem(PLAN_REGISTRY_STORAGE_KEY) ?? storage.getItem(LEGACY_PLAN_REGISTRY_STORAGE_KEY)
     if (!raw) return emptyRegistry()
     return normalizePlanRegistry(JSON.parse(raw))
   } catch {
@@ -157,7 +159,9 @@ function writeRegistry(registry: PersistedPlanRegistry, storage = browserStorage
 
 function readPreviewMode(): GuiPlanPreviewMode {
   try {
-    const raw = browserStorage()?.getItem(PLAN_PREVIEW_MODE_STORAGE_KEY)
+    const storage = browserStorage()
+    const raw = storage?.getItem(PLAN_PREVIEW_MODE_STORAGE_KEY)
+      ?? storage?.getItem(LEGACY_PLAN_PREVIEW_MODE_STORAGE_KEY)
     return raw === 'source' || raw === 'split' || raw === 'preview' || raw === 'live'
       ? raw
       : 'live'

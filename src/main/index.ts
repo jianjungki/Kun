@@ -518,7 +518,7 @@ async function waitForQueuedRuntimeSettingsApply(): Promise<void> {
 
 /**
  * Build a stable fingerprint of the settings that affect the
- * Kun runtime so that `ensureRuntime` can debounce on real
+ * PengCodex Core runtime so that `ensureRuntime` can debounce on real
  * state instead of on a single in-flight promise. Without this,
  * a fresh call that arrives while a failing ensure is still pending
  * would re-throw the old error.
@@ -674,7 +674,7 @@ function createWindow(options: { suppressInitialShow?: boolean } = {}): void {
 }
 
 /**
- * Stable equality for the Kun runtime settings. Most fields are flat,
+ * Stable equality for the PengCodex Core runtime settings. Most fields are flat,
  * but GUI-managed capability options can be nested, so compare values
  * structurally while still surviving future field additions.
  */

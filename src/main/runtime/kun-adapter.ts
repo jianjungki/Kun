@@ -36,7 +36,7 @@ export const kunRuntimeAdapter = {
       const scriptPath = resolution.args[0] ?? ''
       return runtime.binaryPath.trim()
         ? `Node.js script (${scriptPath})`
-        : `Bundled Kun (${scriptPath})`
+        : `Bundled PengCodex Core (${scriptPath})`
     }
     return resolution.command
   },
@@ -67,7 +67,7 @@ export function getRuntimeBaseUrlForSettings(settings: AppSettingsV1): string {
   return kunRuntimeAdapter.getBaseUrl(settings)
 }
 
-/** Build the bearer-token authorization header for Kun requests. */
+/** Build the bearer-token authorization header for PengCodex Core requests. */
 export function runtimeAuthHeaders(settings: AppSettingsV1): Headers {
   const runtime = getKunRuntimeSettings(settings)
   const headers = new Headers()

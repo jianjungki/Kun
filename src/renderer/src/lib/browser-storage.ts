@@ -42,6 +42,32 @@ export function readBrowserStorageItem(key: string): string | null {
   }
 }
 
+export function readBrowserStorageItemWithLegacy(
+  key: string,
+  legacyKeys: readonly string[]
+): string | null {
+  const storage = browserStorage()
+  if (!storage) return null
+  try {
+    const current = storage.getItem(key)
+    if (current !== null) return current
+    for (const legacyKey of legacyKeys) {
+      const legacy = storage.getItem(legacyKey)
+      if (legacy !== null) {
+        try {
+          storage.setItem(key, legacy)
+        } catch {
+          /* ignore migration failures */
+        }
+        return legacy
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export function writeBrowserStorageItem(key: string, value: string): void {
   try {
     browserStorage()?.setItem(key, value)

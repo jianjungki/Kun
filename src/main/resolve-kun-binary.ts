@@ -2,8 +2,8 @@ import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
- * Resolve the Kun executable. Kun ships as a TypeScript
- * package inside the DeepSeek-GUI workspace (`kun/`) and is
+ * Resolve the PengCodex Core executable. PengCodex Core ships as a TypeScript
+ * package inside the PengCodex workspace (`kun/`) and is
  * executed through the bundled Node.js runtime that Electron carries.
  *
  * Resolution order:
@@ -97,7 +97,7 @@ export function resolveKunExecutable(
 
 /**
  * Build the full `kun serve` argv from resolved binary info
- * and Kun runtime settings. The function is pure: no I/O, no
+ * and PengCodex Core runtime settings. The function is pure: no I/O, no
  * side effects, easy to test.
  */
 export function buildKunServeArgs(input: {

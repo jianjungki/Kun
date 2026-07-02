@@ -51,8 +51,8 @@ function prunePackedKunDependencies(context) {
   const kunDir = join(root, 'kun')
   if (!existsSync(kunDir)) return
 
-  assertExists(join(kunDir, 'package.json'), 'Kun package manifest')
-  assertExists(join(kunDir, 'node_modules'), 'Kun node_modules')
+  assertExists(join(kunDir, 'package.json'), 'PengCodex Core package manifest')
+  assertExists(join(kunDir, 'node_modules'), 'PengCodex Core node_modules')
 
   const prune = npmCommand(['prune', '--omit=dev', '--ignore-scripts'])
   execFileSync(prune.command, prune.args, {

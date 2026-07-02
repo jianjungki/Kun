@@ -24,7 +24,7 @@ import {
   formatDevPreviewUrlLabel
 } from '../lib/dev-preview-detection'
 import {
-  readBrowserStorageItem,
+  readBrowserStorageItemWithLegacy,
   removeBrowserStorageItem,
   writeBrowserStorageItem
 } from '../lib/browser-storage'
@@ -52,12 +52,14 @@ type WebviewTitleEvent = Event & {
   title: string
 }
 
-const PREVIEW_URL_STORAGE_KEY = 'deepseekgui.devPreview.url'
-const PREVIEW_AUTO_FOLLOW_STORAGE_KEY = 'deepseekgui.devPreview.autoFollow'
+const PREVIEW_URL_STORAGE_KEY = 'pengcodex.devPreview.url'
+const LEGACY_PREVIEW_URL_STORAGE_KEY = 'deepseekgui.devPreview.url'
+const PREVIEW_AUTO_FOLLOW_STORAGE_KEY = 'pengcodex.devPreview.autoFollow'
+const LEGACY_PREVIEW_AUTO_FOLLOW_STORAGE_KEY = 'deepseekgui.devPreview.autoFollow'
 
 function readStoredUrl(): string | null {
   try {
-    const raw = readBrowserStorageItem(PREVIEW_URL_STORAGE_KEY)
+    const raw = readBrowserStorageItemWithLegacy(PREVIEW_URL_STORAGE_KEY, [LEGACY_PREVIEW_URL_STORAGE_KEY])
     const normalized = raw ? normalizeDevPreviewUrlInput(raw) : null
     if (!normalized) return null
     if (normalized === DEFAULT_DEV_PREVIEW_URL) {
@@ -79,7 +81,10 @@ function persistUrl(url: string): void {
 }
 
 function readStoredAutoFollow(): boolean {
-  const raw = readBrowserStorageItem(PREVIEW_AUTO_FOLLOW_STORAGE_KEY)
+  const raw = readBrowserStorageItemWithLegacy(
+    PREVIEW_AUTO_FOLLOW_STORAGE_KEY,
+    [LEGACY_PREVIEW_AUTO_FOLLOW_STORAGE_KEY]
+  )
   return raw == null ? true : raw === 'true'
 }
 

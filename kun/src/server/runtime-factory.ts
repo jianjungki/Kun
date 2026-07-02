@@ -126,7 +126,7 @@ export async function createKunServeRuntime(
     pinnedConstraints: [
       'system: preserve user intent across compaction',
       'system: keep the HTTP/SSE contract stable for the GUI',
-      'system: keep the stable Kun prefix byte-stable for prompt-cache reuse'
+      'system: keep the stable PengCodex Core prefix byte-stable for prompt-cache reuse'
     ]
   })
   const turnService = new TurnService({

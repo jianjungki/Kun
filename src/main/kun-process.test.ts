@@ -114,7 +114,7 @@ describe('startKunChild', () => {
     )
     const module = await import('./kun-process')
     await expect(module.startKunChild(createSettings(script))).rejects.toThrow(
-      /Kun exited during startup with code 23[\s\S]*bind failed on port 8899/
+      /PengCodex Core exited during startup with code 23[\s\S]*bind failed on port 8899/
     )
     expect(module.isKunChildRunning()).toBe(false)
     await module.stopKunChildAndWait()

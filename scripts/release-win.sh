@@ -107,8 +107,8 @@ collect() {
   done
 }
 
-collect "Windows exe" "dist/DeepSeek-GUI-*-win-*.exe"
-collect "Windows blockmap" "dist/DeepSeek-GUI-*-win-*.exe.blockmap"
+collect "Windows exe" "dist/PengCodex-*-win-*.exe"
+collect "Windows blockmap" "dist/PengCodex-*-win-*.exe.blockmap"
 
 cyan "Uploading ${#ASSETS[@]} Windows asset(s) to ${TAG_NAME}..."
 for asset in "${ASSETS[@]}"; do

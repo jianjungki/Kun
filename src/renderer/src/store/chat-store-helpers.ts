@@ -16,18 +16,24 @@ import {
   normalizeWorkspaceRoot,
   workspaceRootIdentityKey
 } from '../lib/workspace-path'
-import { readBrowserStorageItem, writeBrowserStorageItem } from '../lib/browser-storage'
+import {
+  readBrowserStorageItemWithLegacy,
+  writeBrowserStorageItem
+} from '../lib/browser-storage'
 
-const COMPOSER_MODEL_STORAGE_KEY = 'deepseekgui.composerModel'
-const TURN_MODEL_STORAGE_KEY = 'deepseekgui.turnModelLabel'
-const CODE_WORKSPACE_ROOTS_STORAGE_KEY = 'deepseekgui.codeWorkspaceRoots.v1'
+const COMPOSER_MODEL_STORAGE_KEY = 'pengcodex.composerModel'
+const LEGACY_COMPOSER_MODEL_STORAGE_KEY = 'deepseekgui.composerModel'
+const TURN_MODEL_STORAGE_KEY = 'pengcodex.turnModelLabel'
+const LEGACY_TURN_MODEL_STORAGE_KEY = 'deepseekgui.turnModelLabel'
+const CODE_WORKSPACE_ROOTS_STORAGE_KEY = 'pengcodex.codeWorkspaceRoots.v1'
+const LEGACY_CODE_WORKSPACE_ROOTS_STORAGE_KEY = 'deepseekgui.codeWorkspaceRoots.v1'
 export const MAX_CODE_WORKSPACE_ROOTS = 30
 export const MAX_TURN_MODEL_LABELS = 500
 
 export const CLAW_COMPOSER_MODEL_IDS = [...CLAW_MODEL_IDS]
 
 export function readStoredComposerModel(allowedIds: readonly string[]): string {
-  const raw = readBrowserStorageItem(COMPOSER_MODEL_STORAGE_KEY)
+  const raw = readBrowserStorageItemWithLegacy(COMPOSER_MODEL_STORAGE_KEY, [LEGACY_COMPOSER_MODEL_STORAGE_KEY])
   if (raw === null) return ''
   if (raw === '') return ''
   if (allowedIds.includes(raw)) return raw
@@ -57,7 +63,10 @@ export function compactCodeWorkspaceRoots(workspaceRoots: readonly (string | und
 
 export function readCodeWorkspaceRoots(): string[] {
   try {
-    const raw = readBrowserStorageItem(CODE_WORKSPACE_ROOTS_STORAGE_KEY)
+    const raw = readBrowserStorageItemWithLegacy(
+      CODE_WORKSPACE_ROOTS_STORAGE_KEY,
+      [LEGACY_CODE_WORKSPACE_ROOTS_STORAGE_KEY]
+    )
     if (!raw) return []
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
@@ -230,7 +239,7 @@ function defaultClawProviderLabel(provider: ClawImProvider): string {
 
 function loadTurnModelMap(): Record<string, string> {
   try {
-    const raw = readBrowserStorageItem(TURN_MODEL_STORAGE_KEY)
+    const raw = readBrowserStorageItemWithLegacy(TURN_MODEL_STORAGE_KEY, [LEGACY_TURN_MODEL_STORAGE_KEY])
     if (!raw) return {}
     return normalizeTurnModelMap(JSON.parse(raw))
   } catch {

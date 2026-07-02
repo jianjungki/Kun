@@ -347,7 +347,7 @@ function resolveReservedTarget(
     return { error: 'plan_relative_path must be a direct Markdown file under .kunsdd/plan' }
   }
   if (input.operation === 'draft' && !isGuiPlanCurrentRelativePath(relativePath)) {
-    return { error: 'legacy .deepseekgui/plan paths can only be refined' }
+    return { error: 'legacy .pengcodex/plan paths can only be refined' }
   }
   if (input.plan_relative_path && toRelativePath(input.plan_relative_path) !== contextPlan.relativePath) {
     return { error: 'plan_relative_path does not match the reserved GUI plan path' }

@@ -6,7 +6,7 @@ import {
   type KeyboardShortcutsConfigV1
 } from '@shared/app-settings'
 
-export const SETTINGS_CHANGED_EVENT = 'deepseek-gui:settings-changed'
+export const SETTINGS_CHANGED_EVENT = 'pengcodex:settings-changed'
 
 export function emitRendererSettingsChanged(settings: AppSettingsV1): void {
   window.dispatchEvent(new CustomEvent<AppSettingsV1>(SETTINGS_CHANGED_EVENT, { detail: settings }))

@@ -1,9 +1,9 @@
 /**
- * Kun-side mirror of the shared GUI plan contract from
- * DeepSeek-GUI's `src/shared/gui-plan.ts`.
+ * PengCodex Core-side mirror of the shared GUI plan contract from
+ * PengCodex's `src/shared/gui-plan.ts`.
  *
- * The renderer and the Kun package live in the same repo but
- * TypeScript's `rootDir` constraint prevents Kun from
+ * The renderer and the PengCodex Core package live in the same repo but
+ * TypeScript's `rootDir` constraint prevents PengCodex Core from
  * referencing the renderer-side file at build time. The values and
  * types are therefore re-declared here; the renderer remains the
  * canonical owner of the source of truth. Keep the two files in
@@ -11,7 +11,7 @@
  */
 
 export const GUI_PLAN_RELATIVE_DIR = '.kunsdd/plan'
-export const GUI_PLAN_LEGACY_RELATIVE_DIR = '.deepseekgui/plan'
+export const GUI_PLAN_LEGACY_RELATIVE_DIR = '.pengcodex/plan'
 export const GUI_PLAN_ACCEPTED_RELATIVE_DIRS = [
   GUI_PLAN_RELATIVE_DIR,
   GUI_PLAN_LEGACY_RELATIVE_DIR

@@ -93,7 +93,7 @@ export function createReadLocalTool(options: ReadLocalToolOptions = {}): LocalTo
         }
       }
       if (isBinaryBuffer(fileBuffer)) {
-        return { output: { error: 'read only supports text files in Kun serve mode', path: absolutePath }, isError: true }
+        return { output: { error: 'read only supports text files in PengCodex Core serve mode', path: absolutePath }, isError: true }
       }
       const text = fileBuffer.toString('utf8').replace(/\r\n/g, '\n')
       const allLines = text.split('\n')

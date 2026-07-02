@@ -327,7 +327,7 @@ export class AgentLoop {
     } catch (error) {
       const raw = error instanceof Error ? error.message : String(error)
       // Best-effort enrichment so the renderer can show "what failed where"
-      // instead of the bare "Kun turn failed" string. See issue #26.
+      // instead of the bare "PengCodex Core turn failed" string. See issue #26.
       const modelInfo = this.opts.model && 'config' in this.opts.model
         ? (this.opts.model as { config: { model?: string; baseUrl?: string } }).config
         : undefined
@@ -337,7 +337,7 @@ export class AgentLoop {
         ? (error.stack?.split('\n').slice(0, 3).join(' | ') ?? '')
         : ''
       const message = [
-        '[Kun turn failed]',
+        '[PengCodex Core turn failed]',
         `turn=${turnId}`,
         `thread=${threadId}`,
         `model=${modelName}`,
@@ -1798,7 +1798,7 @@ export class AgentLoop {
   /** Convenience factory for tests: builds a loop with sensible defaults. */
   static defaultPrefix(): ImmutablePrefix {
     return createImmutablePrefix({
-      systemPrompt: 'You are Kun, a careful and helpful assistant.',
+      systemPrompt: 'You are PengCodex Core, a careful and helpful assistant.',
       pinnedConstraints: ['user: preserve recent turns', 'project: keep responses concise']
     })
   }
@@ -1912,8 +1912,8 @@ function buildToolCatalogDriftMessage(toolCatalog: {
   const sample = toolCatalog.toolNames.slice(0, 12).join(', ')
   const suffix = toolCatalog.toolNames.length > 12 ? `, +${toolCatalog.toolNames.length - 12} more` : ''
   const policy = changeKind === 'additive'
-    ? 'Only additive tool changes are allowed in-place; Kun will continue with the refreshed tool list.'
-    : 'Non-additive tool changes can invalidate prompt-cache assumptions; Kun stopped this turn. Start a new thread after editing, removing, or reordering tool schemas.'
+    ? 'Only additive tool changes are allowed in-place; PengCodex Core will continue with the refreshed tool list.'
+    : 'Non-additive tool changes can invalidate prompt-cache assumptions; PengCodex Core stopped this turn. Start a new thread after editing, removing, or reordering tool schemas.'
   return [
     `Tool catalog changed for this thread (${toolCatalog.toolCount} tools, fingerprint ${toolCatalog.fingerprint}).`,
     policy,
@@ -1934,7 +1934,7 @@ function buildModelCompactionPrompt(input: {
     Math.max(1_024, input.maxBytes)
   )
   return [
-    'Summarize the following Kun conversation history for a context fold.',
+    'Summarize the following PengCodex Core conversation history for a context fold.',
     'Preserve user goals, requirements, decisions, files touched, tool outcomes, errors, constraints, active/pinned skills, and unresolved next steps.',
     'Do not invent facts. Do not include generic advice. Prefer concise bullets grouped by topic.',
     '',

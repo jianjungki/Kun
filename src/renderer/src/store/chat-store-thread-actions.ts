@@ -166,7 +166,7 @@ export function createThreadActions(
         cacheEngineMode: runtime.cacheEngineMode
       })
       // Register + activate optimistically before refreshing. A freshly created
-      // Kun thread may not be listed until the first message is written.
+      // PengCodex Core thread may not be listed until the first message is written.
       // Setting it active first lets refreshThreads preserve it in the sidebar.
       set((s) => ({
         activeThreadId: t.id,

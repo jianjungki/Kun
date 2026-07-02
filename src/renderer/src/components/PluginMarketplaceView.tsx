@@ -18,7 +18,10 @@ import {
   savePreferredSkillRootId,
   type SkillRootId
 } from '../lib/skill-root-preference'
-import { readBrowserStorageItem, writeBrowserStorageItem } from '../lib/browser-storage'
+import {
+  readBrowserStorageItemWithLegacy,
+  writeBrowserStorageItem
+} from '../lib/browser-storage'
 import { RECOMMENDED_SKILLS, buildSkillContent } from '../lib/skill-registry'
 import { normalizeWorkspaceRoot } from '../lib/workspace-path'
 import { getProvider } from '../agent/registry'
@@ -65,12 +68,13 @@ type SkillRootOption = {
   available: boolean
 }
 
-const INSTALLED_STORAGE_KEY = 'deepseekgui.installedPlugins'
+const INSTALLED_STORAGE_KEY = 'pengcodex.installedPlugins'
+const LEGACY_INSTALLED_STORAGE_KEY = 'deepseekgui.installedPlugins'
 const GUI_SCHEDULE_MCP_SERVER_ID = 'gui_schedule'
 
 function loadInstalledPlugins(): string[] {
   try {
-    const raw = readBrowserStorageItem(INSTALLED_STORAGE_KEY)
+    const raw = readBrowserStorageItemWithLegacy(INSTALLED_STORAGE_KEY, [LEGACY_INSTALLED_STORAGE_KEY])
     if (!raw) return []
     const parsed = JSON.parse(raw) as unknown
     return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []

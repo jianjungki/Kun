@@ -1,5 +1,5 @@
 /**
- * Base URL resolution for the Kun local HTTP server. The
+ * Base URL resolution for the PengCodex Core local HTTP server. The
  * server is always bound to localhost; the GUI reads the port from
  * settings (default 8899).
  */

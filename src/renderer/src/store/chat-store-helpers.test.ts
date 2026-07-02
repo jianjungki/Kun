@@ -14,7 +14,8 @@ import {
   rememberTurnModel
 } from './chat-store-helpers'
 
-const TURN_MODEL_STORAGE_KEY = 'deepseekgui.turnModelLabel'
+const TURN_MODEL_STORAGE_KEY = 'pengcodex.turnModelLabel'
+const LEGACY_TURN_MODEL_STORAGE_KEY = 'deepseekgui.turnModelLabel'
 
 function createMemoryStorage(): Storage {
   const items = new Map<string, string>()
@@ -184,7 +185,7 @@ describe('chat-store Claw helpers', () => {
     for (let index = 0; index < MAX_TURN_MODEL_LABELS; index += 1) {
       raw[`thread-${index}|item-${index}`] = `model-${index}`
     }
-    localStorage.setItem(TURN_MODEL_STORAGE_KEY, JSON.stringify(raw))
+    localStorage.setItem(LEGACY_TURN_MODEL_STORAGE_KEY, JSON.stringify(raw))
 
     rememberTurnModel(' thread-new ', ' item-new ', ' deepseek-chat ')
 

@@ -206,7 +206,7 @@ export async function startKunChild(settings: AppSettingsV1): Promise<void> {
   const resolution = resolveKunExecutable(root, runtime.binaryPath)
   if (resolution.command === process.execPath && !existsSync(resolution.args[0])) {
     throw new Error(
-      `Kun runtime build is missing at ${resolution.args[0]}. Run \`npm run build:kun\` before starting the GUI.`
+      `PengCodex Core build is missing at ${resolution.args[0]}. Run \`npm run build:kun\` before starting the GUI.`
     )
   }
   const dataDir = resolveKunDataDir(runtime)
@@ -413,7 +413,7 @@ export async function syncGuiManagedKunConfig(
   const parsedNext = KunConfigSchema.safeParse(next)
   if (!parsedNext.success) {
     throw new Error(
-      `Refusing to write invalid GUI-managed Kun config at ${configPath}: ${JSON.stringify(parsedNext.error.issues, null, 2)}`
+      `Refusing to write invalid GUI-managed PengCodex Core config at ${configPath}: ${JSON.stringify(parsedNext.error.issues, null, 2)}`
     )
   }
   const nextText = `${JSON.stringify(next, null, 2)}\n`
@@ -893,12 +893,12 @@ function describeKunExit(
   stderrTail = ''
 ): string {
   const suffix = stderrTail.trim() ? `\n${stderrTail.trim()}` : ''
-  if (signal) return `Kun exited during startup with signal ${signal}${suffix}`
-  if (typeof code === 'number') return `Kun exited during startup with code ${code}${suffix}`
-  return `Kun exited during startup${suffix}`
+  if (signal) return `PengCodex Core exited during startup with signal ${signal}${suffix}`
+  if (typeof code === 'number') return `PengCodex Core exited during startup with code ${code}${suffix}`
+  return `PengCodex Core exited during startup${suffix}`
 }
 
 function describeKunStartupTimeout(stderrTail: string): string {
   const suffix = stderrTail.trim() ? `\n${stderrTail.trim()}` : ''
-  return `Kun did not report ready within ${KUN_STARTUP_TIMEOUT_MS}ms${suffix}`
+  return `PengCodex Core did not report ready within ${KUN_STARTUP_TIMEOUT_MS}ms${suffix}`
 }

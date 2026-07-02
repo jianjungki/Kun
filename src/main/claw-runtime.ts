@@ -761,7 +761,7 @@ export class ClawRuntime {
         { method: 'GET' }
       )
       if (!detailRes.ok) {
-        this.deps.logError('claw-feishu', 'Failed to read recent generated files from Kun thread', {
+        this.deps.logError('claw-feishu', 'Failed to read recent generated files from PengCodex Core thread', {
           ...context,
           threadId: targetThreadId,
           message: runtimeErrorMessage(detailRes, 'Failed to read thread result.')
@@ -773,7 +773,7 @@ export class ClawRuntime {
         maxFiles: 3
       })
     } catch (error) {
-      this.deps.logError('claw-feishu', 'Failed to inspect Kun thread for recent generated files', {
+      this.deps.logError('claw-feishu', 'Failed to inspect PengCodex Core thread for recent generated files', {
         ...context,
         threadId: targetThreadId,
         message: errorMessage(error)
@@ -1255,7 +1255,7 @@ export class ClawRuntime {
           appSecret,
           domain: domain === 'lark' ? Domain.Lark : Domain.Feishu,
           loggerLevel: LoggerLevel.warn,
-          source: 'deepseek-gui',
+          source: 'pengcodex',
           transport: 'websocket',
           policy: {
             dmMode: 'open',
@@ -1385,13 +1385,13 @@ export class ClawRuntime {
       if (url.pathname === '/claw/internal/gui-plan/create' && req.method === 'POST') {
         // The legacy `gui_plan_create` MCP bridge is no longer the
         // active plan path. GUI plan creation now flows through the
-        // native Kun `create_plan` tool. Reject legacy calls
+        // native PengCodex Core `create_plan` tool. Reject legacy calls
         // loudly so older clients see a clear migration error.
         writeJson(res, 410, {
           ok: false,
           code: 'gui_plan_create_retired',
           message:
-            'The /claw/internal/gui-plan/create endpoint is no longer active. Use the Kun create_plan tool.'
+            'The /claw/internal/gui-plan/create endpoint is no longer active. Use the PengCodex Core create_plan tool.'
         })
         return
       }
@@ -1405,9 +1405,15 @@ export class ClawRuntime {
       }
       if (im.secret) {
         const auth = req.headers.authorization ?? ''
-        const headerSecret = Array.isArray(req.headers['x-deepseek-gui-secret'])
-          ? req.headers['x-deepseek-gui-secret'][0]
-          : req.headers['x-deepseek-gui-secret']
+        const pengcodexHeader = req.headers['x-pengcodex-secret']
+        const legacyHeader = req.headers['x-deepseek-gui-secret']
+        const headerSecret = Array.isArray(pengcodexHeader)
+          ? pengcodexHeader[0]
+          : typeof pengcodexHeader === 'string'
+            ? pengcodexHeader
+            : Array.isArray(legacyHeader)
+              ? legacyHeader[0]
+              : legacyHeader
         if (auth !== `Bearer ${im.secret}` && headerSecret !== im.secret) {
           writeJson(res, 401, { ok: false, message: 'Unauthorized.' })
           return

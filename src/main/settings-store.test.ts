@@ -28,7 +28,7 @@ describe('JsonSettingsStore', () => {
     const store = new JsonSettingsStore(userDataDir)
     const loaded = await store.load()
 
-    expect(loaded.write.defaultWorkspaceRoot).toContain('.deepseekgui')
+    expect(loaded.write.defaultWorkspaceRoot).toContain('.pengcodex')
     expect(loaded.write.workspaces).toContain(loaded.write.defaultWorkspaceRoot)
     expect(loaded.write.inlineCompletion.enabled).toBe(true)
     expect(loaded.write.inlineCompletion.retrievalEnabled).toBe(true)
@@ -210,8 +210,8 @@ describe('JsonSettingsStore', () => {
   it('loads settings from the legacy lowercase userData directory and writes them into the current path', async () => {
     const supportRoot = await mkdtemp(join(tmpdir(), 'ds-gui-settings-compat-'))
     const legacyUserDataDir = join(supportRoot, 'deepseek-gui')
-    const currentUserDataDir = join(supportRoot, 'DeepSeek GUI')
-    const currentSettingsPath = join(currentUserDataDir, 'deepseek-gui-settings.json')
+    const currentUserDataDir = join(supportRoot, 'PengCodex')
+    const currentSettingsPath = join(currentUserDataDir, 'pengcodex-settings.json')
 
     await mkdir(legacyUserDataDir, { recursive: true })
     await writeFile(
@@ -273,13 +273,13 @@ describe('JsonSettingsStore', () => {
 
   it('backs up invalid JSON and replaces it with defaults', async () => {
     const userDataDir = await mkdtemp(join(tmpdir(), 'ds-gui-settings-'))
-    const settingsPath = join(userDataDir, 'deepseek-gui-settings.json')
+    const settingsPath = join(userDataDir, 'pengcodex-settings.json')
     await writeFile(settingsPath, '{ invalid json', 'utf8')
 
     const store = new JsonSettingsStore(userDataDir)
     const loaded = await store.load()
     const files = await readdir(userDataDir)
-    const backupName = files.find((file) => file.startsWith('deepseek-gui-settings.invalid-'))
+    const backupName = files.find((file) => file.startsWith('pengcodex-settings.invalid-'))
 
     expect(loaded.workspaceRoot.length).toBeGreaterThan(0)
     expect(backupName).toBeTruthy()
@@ -290,7 +290,7 @@ describe('JsonSettingsStore', () => {
 
   it('throws for non-recoverable read errors', async () => {
     const userDataDir = await mkdtemp(join(tmpdir(), 'ds-gui-settings-'))
-    const settingsPath = join(userDataDir, 'deepseek-gui-settings.json')
+    const settingsPath = join(userDataDir, 'pengcodex-settings.json')
     await mkdir(settingsPath, { recursive: true })
 
     const store = new JsonSettingsStore(userDataDir)
@@ -348,7 +348,7 @@ describe('JsonSettingsStore', () => {
 
   it('omits agentProvider when writing normalized settings to disk', async () => {
     const userDataDir = await mkdtemp(join(tmpdir(), 'ds-gui-settings-'))
-    const settingsPath = join(userDataDir, 'deepseek-gui-settings.json')
+    const settingsPath = join(userDataDir, 'pengcodex-settings.json')
     const store = new JsonSettingsStore(userDataDir)
     await store.load()
     await store.patch({
@@ -458,7 +458,7 @@ describe('JsonSettingsStore', () => {
 
       // Final file is present and non-empty.
       const finalContents = await readFile(
-        join(userDataDir, 'deepseek-gui-settings.json'),
+        join(userDataDir, 'pengcodex-settings.json'),
         'utf8'
       )
       expect(finalContents.length).toBeGreaterThan(0)

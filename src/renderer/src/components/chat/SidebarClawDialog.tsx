@@ -271,7 +271,7 @@ export function ClawAddImDialog({
   )
   const bindingPayload = useMemo(() => {
     const payload: Record<string, unknown> = {
-      kind: 'deepseek-gui.claw-im',
+      kind: 'pengcodex.claw-im',
       provider: effectiveProvider,
       endpoint,
       method: 'POST',

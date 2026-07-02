@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   defaultClawSettings,
   defaultKeyboardShortcuts,
@@ -172,7 +175,12 @@ describe('ScheduleRuntime', () => {
   })
 
   it('starts a Kun thread with a Schedule title and records running status', async () => {
-    const task = makeTask({ reasoningEffort: 'max' })
+    const workspaceRoot = await mkdtemp(join(tmpdir(), 'pengcodex-schedule-'))
+    const task = makeTask({
+      reasoningEffort: 'max',
+      workspaceRoot,
+      taskWorkspaceRoot: workspaceRoot
+    })
     const runtimeRequest = vi.fn(async (_settings, path, init) => {
       if (path === '/v1/threads') {
         return { ok: true, status: 200, body: JSON.stringify({ id: 'thr_1' }) }
@@ -202,7 +210,7 @@ describe('ScheduleRuntime', () => {
     )?.[2]?.body
     expect(JSON.parse(String(createRequest))).toMatchObject({
       title: '[Scheduled task] Task',
-      workspace: '/tmp/workspace',
+      workspace: workspaceRoot,
       model: 'auto',
       mode: 'agent'
     })

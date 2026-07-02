@@ -266,6 +266,10 @@ function compatibleSettingsPaths(currentPath: string): string[] {
   const currentFileName = basename(currentPath)
   const parentDir = dirname(currentUserDataDir)
   const candidates: string[] = []
+  for (const fileName of COMPATIBLE_SETTINGS_FILE_NAMES) {
+    if (fileName === currentFileName) continue
+    candidates.push(join(currentUserDataDir, fileName))
+  }
   for (const dirName of COMPATIBLE_USER_DATA_DIR_NAMES) {
     for (const fileName of COMPATIBLE_SETTINGS_FILE_NAMES) {
       if (dirName === currentDirName && fileName === currentFileName) continue

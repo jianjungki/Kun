@@ -1,9 +1,13 @@
-import { readBrowserStorageItem, writeBrowserStorageItem } from './browser-storage'
+import { readBrowserStorageItemWithLegacy, writeBrowserStorageItem } from './browser-storage'
 
-export const PREFERRED_EDITOR_STORAGE_KEY = 'deepseekgui.editor.preferredId'
+export const PREFERRED_EDITOR_STORAGE_KEY = 'pengcodex.editor.preferredId'
+const LEGACY_PREFERRED_EDITOR_STORAGE_KEY = 'deepseekgui.editor.preferredId'
 
 export function readPreferredEditorId(): string | undefined {
-  const value = readBrowserStorageItem(PREFERRED_EDITOR_STORAGE_KEY)?.trim()
+  const value = readBrowserStorageItemWithLegacy(
+    PREFERRED_EDITOR_STORAGE_KEY,
+    [LEGACY_PREFERRED_EDITOR_STORAGE_KEY]
+  )?.trim()
   return value || undefined
 }
 

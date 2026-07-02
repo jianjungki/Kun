@@ -1,4 +1,4 @@
-import { readBrowserStorageItem, writeBrowserStorageItem } from './browser-storage'
+import { readBrowserStorageItemWithLegacy, writeBrowserStorageItem } from './browser-storage'
 
 export type SkillRootId =
   | 'workspace-agents'
@@ -7,7 +7,8 @@ export type SkillRootId =
   | 'global-deepseek'
 
 const DEFAULT_SKILL_ROOT_ID: SkillRootId = 'workspace-agents'
-const SKILL_ROOT_PREFERENCE_KEY = 'deepseekgui.skillRootPreference'
+const SKILL_ROOT_PREFERENCE_KEY = 'pengcodex.skillRootPreference'
+const LEGACY_SKILL_ROOT_PREFERENCE_KEY = 'deepseekgui.skillRootPreference'
 
 function isSkillRootId(value: string): value is SkillRootId {
   return (
@@ -19,7 +20,10 @@ function isSkillRootId(value: string): value is SkillRootId {
 }
 
 export function loadPreferredSkillRootId(): SkillRootId {
-  const raw = readBrowserStorageItem(SKILL_ROOT_PREFERENCE_KEY)?.trim() ?? ''
+  const raw = readBrowserStorageItemWithLegacy(
+    SKILL_ROOT_PREFERENCE_KEY,
+    [LEGACY_SKILL_ROOT_PREFERENCE_KEY]
+  )?.trim() ?? ''
   return isSkillRootId(raw) ? raw : DEFAULT_SKILL_ROOT_ID
 }
 

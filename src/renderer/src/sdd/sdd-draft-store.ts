@@ -50,7 +50,8 @@ export type SddDraftState = {
   clearActiveDraft: () => void
 }
 
-const SDD_DRAFT_REGISTRY_STORAGE_KEY = 'deepseekgui.sdd.draft.registry.v1'
+const SDD_DRAFT_REGISTRY_STORAGE_KEY = 'pengcodex.sdd.draft.registry.v1'
+const LEGACY_SDD_DRAFT_REGISTRY_STORAGE_KEY = 'deepseekgui.sdd.draft.registry.v1'
 
 function normalizeWorkspaceRoot(value: string | undefined | null): string {
   return (value ?? '').trim().replaceAll('\\', '/').replace(/\/+$/, '')
@@ -108,6 +109,7 @@ function readRegistry(storage = browserStorage()): PersistedSddDraftRegistry {
   if (!storage) return emptyRegistry()
   try {
     const raw = storage.getItem(SDD_DRAFT_REGISTRY_STORAGE_KEY)
+      ?? storage.getItem(LEGACY_SDD_DRAFT_REGISTRY_STORAGE_KEY)
     if (!raw) return emptyRegistry()
     const parsed = JSON.parse(raw) as unknown
     if (!isRecord(parsed)) return emptyRegistry()

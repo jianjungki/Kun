@@ -1035,7 +1035,7 @@ export async function dispatchKunRuntimeEvent(
       sink.onTurnComplete()
       return
     case 'turn_failed': {
-      const payload = runtimeErrorFromEvent(event, 'Kun turn failed')
+      const payload = runtimeErrorFromEvent(event, 'PengCodex Core turn failed')
       sink.onRuntimeError?.(payload)
       sink.onError(errorForRuntimeEvent(payload))
       return

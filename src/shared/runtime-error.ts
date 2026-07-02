@@ -1,16 +1,16 @@
 /**
- * Shared parser for Kun runtime error bodies.
+ * Shared parser for PengCodex Core runtime error bodies.
  *
- * Kun's contract (`kun/src/contracts/errors.ts`) returns
+ * PengCodex Core's contract (`kun/src/contracts/errors.ts`) returns
  * `{ code, message, details? }`. Older code paths may also surface
  * `{ error: string | { message }, message? }` where `error` is a
  * legacy machine-readable code (e.g. `runtime_auth_required`).
  *
  * This module normalises both shapes so the renderer and main
  * process agree on a single `RuntimeError` view. The `code` field
- * always carries either a Kun contract code or one of the
+ * always carries either a PengCodex Core contract code or one of the
  * `LEGACY_MAIN_GUARD_CODES` (main-process guard codes that aren't
- * part of the Kun schema). `details` carries the original
+ * part of the PengCodex Core schema). `details` carries the original
  * payload untouched so callers that need more context can read it.
  */
 export type KunErrorCode =
@@ -106,7 +106,7 @@ function readNestedMessage(value: unknown): string {
 }
 
 /**
- * Parse a Kun runtime error body. Falls back to the supplied
+ * Parse a PengCodex Core runtime error body. Falls back to the supplied
  * fallback message when the body is empty, not JSON, or carries no
  * recognisable fields. The returned object always has `code` and
  * `message`; `details` is only present when the body carried one.
