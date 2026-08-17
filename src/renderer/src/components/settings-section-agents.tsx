@@ -4,6 +4,7 @@ import type {
   AppSettingsPatch,
   AppSettingsV1,
   ModelEndpointFormat,
+  ModelProviderKind,
   ModelProviderProfileV1,
   ModelProviderSettingsV1,
   SandboxMode
@@ -11,6 +12,7 @@ import type {
 import {
   CACHE_ENGINE_MODES,
   DEFAULT_MODEL_PROVIDER_ID,
+  MODEL_PROVIDER_KINDS,
   MODEL_ENDPOINT_FORMATS,
   DEFAULT_WRITE_INLINE_COMPLETION_BASE_URL,
   DEFAULT_WRITE_INLINE_COMPLETION_MAX_TOKENS,
@@ -71,6 +73,15 @@ const MODEL_ENDPOINT_FORMAT_LABEL_KEYS: Record<ModelEndpointFormat, string> = {
   chat_completions: 'modelEndpointChatCompletions',
   responses: 'modelEndpointResponses',
   messages: 'modelEndpointMessages'
+}
+
+const MODEL_PROVIDER_KIND_LABEL_KEYS: Record<ModelProviderKind, string> = {
+  'openai-compatible': 'modelProviderKindOpenAiCompatible',
+  openai: 'modelProviderKindOpenAi',
+  anthropic: 'modelProviderKindAnthropic',
+  google: 'modelProviderKindGoogle',
+  mistral: 'modelProviderKindMistral',
+  xai: 'modelProviderKindXai'
 }
 
 export function modelProvidersSettingsPatch(input: {
@@ -505,6 +516,7 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
     const nextProvider: ModelProviderProfileV1 = {
       id,
       name: t('modelProviderNewName', { index }),
+      providerKind: 'openai-compatible',
       apiKey: '',
       baseUrl: 'https://api.example.com/v1',
       endpointFormat: 'chat_completions',
@@ -616,6 +628,22 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                                 />
                               </label>
                             </div>
+                            <label className="grid gap-1.5 text-[12px] font-semibold text-ds-muted">
+                              {t('modelProviderKind')}
+                              <select
+                                className={selectControlClass}
+                                value={activeProvider.providerKind}
+                                onChange={(e) => updateModelProvider(activeProvider.id, {
+                                  providerKind: e.target.value as ModelProviderKind
+                                })}
+                              >
+                                {MODEL_PROVIDER_KINDS.map((kind) => (
+                                  <option key={kind} value={kind}>
+                                    {t(MODEL_PROVIDER_KIND_LABEL_KEYS[kind])}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
                             <label className="grid gap-1.5 text-[12px] font-semibold text-ds-muted">
                               {t('modelProviderApiKey')}
                               <SecretInput

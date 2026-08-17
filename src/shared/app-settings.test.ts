@@ -16,6 +16,7 @@ import {
   mergeScheduleSettings,
   defaultKunRuntimeSettings,
   defaultScheduleSettings,
+  defaultStudioSettings,
   defaultWriteSettings,
   defaultKeyboardShortcuts,
   isKunRuntimeInsecure,
@@ -50,6 +51,7 @@ function settings(): AppSettingsV1 {
     write: defaultWriteSettings(),
     claw: defaultClawSettings(),
     schedule: defaultScheduleSettings(),
+    studio: defaultStudioSettings(),
     guiUpdate: { channel: 'stable' },
     codePromptPrefix: ''
   }
@@ -525,6 +527,7 @@ describe('legacy Kun defaults migration', () => {
           {
             id: 'custom-provider-2',
             name: 'Custom Provider',
+            providerKind: 'openai',
             apiKey: 'sk-custom',
             baseUrl: 'https://custom.example/v1',
             endpointFormat: 'responses',
@@ -546,6 +549,7 @@ describe('legacy Kun defaults migration', () => {
         expect.objectContaining({
           id: 'custom-provider-2',
           name: 'Custom Provider',
+          providerKind: 'openai',
           apiKey: 'sk-custom',
           baseUrl: 'https://custom.example/v1',
           endpointFormat: 'responses',
@@ -558,6 +562,7 @@ describe('legacy Kun defaults migration', () => {
       expect.objectContaining({
         apiKey: 'sk-custom',
         baseUrl: 'https://custom.example/v1',
+        providerKind: 'openai',
         endpointFormat: 'responses'
       })
     )

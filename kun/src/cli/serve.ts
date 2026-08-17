@@ -83,7 +83,10 @@ export function parseServeOptions(
         ? raw['api-key']
         : typeof raw.apiKey === 'string'
           ? raw.apiKey
-          : env.DEEPSEEK_API_KEY ?? configServe.apiKey ?? DEFAULT_SERVE_OPTIONS.apiKey,
+          : env.KUN_API_KEY ??
+            env.DEEPSEEK_API_KEY ??
+            configServe.apiKey ??
+            DEFAULT_SERVE_OPTIONS.apiKey,
     baseUrl:
       typeof raw['base-url'] === 'string'
         ? raw['base-url']
@@ -93,6 +96,14 @@ export function parseServeOptions(
             env.DEEPSEEK_BASE_URL ??
             configServe.baseUrl ??
             DEFAULT_SERVE_OPTIONS.baseUrl,
+    providerKind:
+      typeof raw['provider-kind'] === 'string'
+        ? raw['provider-kind'] as ServeOptions['providerKind']
+        : typeof raw.providerKind === 'string'
+          ? raw.providerKind as ServeOptions['providerKind']
+          : env.KUN_PROVIDER_KIND as ServeOptions['providerKind'] | undefined ??
+            configServe.providerKind ??
+            DEFAULT_SERVE_OPTIONS.providerKind,
     endpointFormat:
       typeof raw['endpoint-format'] === 'string'
         ? raw['endpoint-format'] as ServeOptions['endpointFormat']
@@ -136,6 +147,7 @@ export function parseServeOptions(
     models: loadedConfig?.config.models,
     contextCompaction: loadedConfig?.config.contextCompaction,
     runtime: loadedConfig?.config.runtime,
+    studio: loadedConfig?.config.studio,
     capabilities: loadedConfig?.config.capabilities ?? DEFAULT_SERVE_OPTIONS.capabilities
   }
   return ServeOptionsSchema.parse(merged)
@@ -158,8 +170,9 @@ Options:
   --port <port>            HTTP port (default ${DEFAULT_SERVE_PORT})
   --data-dir <path>        Root directory for threads, events, and usage
   --runtime-token <token>  Bearer token for /v1/* requests
-  --api-key <key>          DeepSeek-compatible API key
-  --base-url <url>         DeepSeek-compatible base URL
+  --api-key <key>          Model provider API key
+  --base-url <url>         Model provider base URL
+  --provider-kind <kind>   openai-compatible | openai | anthropic | google | mistral | xai
   --endpoint-format <f>    chat_completions | responses | messages
   --model <model>          Default model id
   --approval-policy <p>    on-request | untrusted | never | auto | suggest

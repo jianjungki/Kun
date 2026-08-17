@@ -113,6 +113,12 @@ export function kunSessionResumePath(sessionId: string): string {
 export const KUN_USAGE_PATH = '/v1/usage'
 export const KUN_USAGE_TEMPLATE = '/v1/usage'
 
+export const KUN_STUDIO_IMAGE_PATH = '/v1/studio/image'
+export const KUN_STUDIO_IMAGE_TEMPLATE = '/v1/studio/image'
+
+export const KUN_STUDIO_VIDEO_PATH = '/v1/studio/video'
+export const KUN_STUDIO_VIDEO_TEMPLATE = '/v1/studio/video'
+
 /** Thread mode shared with the PengCodex Core contract. */
 export type KunThreadMode = 'agent' | 'plan'
 

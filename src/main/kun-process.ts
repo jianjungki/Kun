@@ -7,8 +7,11 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
   defaultKunTokenEconomySettings,
+  getModelProviderProfile,
+  getStudioSettings,
   isKunRuntimeInsecure,
   resolveKunRuntimeSettings,
+  type StudioMediaGenerationSettingsV1,
   type KunRuntimeSettingsV1,
   type AppSettingsV1
 } from '../shared/app-settings'
@@ -21,7 +24,8 @@ import {
   KunServeConfigSchema,
   ModelConfigSchema,
   ContextCompactionConfigSchema,
-  RuntimeTuningConfigSchema
+  RuntimeTuningConfigSchema,
+  StudioRuntimeConfigSchema
 } from '../../kun/src/config/kun-config.js'
 import {
   AttachmentsCapabilityConfig,
@@ -211,6 +215,7 @@ export async function startKunChild(settings: AppSettingsV1): Promise<void> {
   }
   const dataDir = resolveKunDataDir(runtime)
   await syncGuiManagedKunConfig(dataDir, runtime, {
+    settings,
     scheduleMcp: {
       settings,
       launch: {
@@ -229,6 +234,7 @@ export async function startKunChild(settings: AppSettingsV1): Promise<void> {
     port: runtime.port,
     dataDir,
     baseUrl: runtime.baseUrl,
+    providerKind: runtime.providerKind,
     endpointFormat: runtime.endpointFormat,
     model: runtime.model,
     approvalPolicy: runtime.approvalPolicy,
@@ -241,6 +247,7 @@ export async function startKunChild(settings: AppSettingsV1): Promise<void> {
       ...process.env,
       ELECTRON_RUN_AS_NODE: '1',
       KUN_RUNTIME_TOKEN: runtime.runtimeToken,
+      KUN_API_KEY: runtime.apiKey || process.env.KUN_API_KEY || process.env.DEEPSEEK_API_KEY || '',
       DEEPSEEK_API_KEY: runtime.apiKey || process.env.DEEPSEEK_API_KEY || ''
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -292,6 +299,7 @@ export async function syncGuiManagedKunConfig(
     | 'runtimeTuning'
   >,
   options?: {
+    settings?: AppSettingsV1
     scheduleMcp?: {
       settings: AppSettingsV1
       launch: ClawScheduleMcpLaunchConfig
@@ -313,6 +321,7 @@ export async function syncGuiManagedKunConfig(
   const existingContextCompaction = objectValue(existing?.contextCompaction)
   const existingModels = objectValue(existing?.models)
   const existingRuntimeTuning = objectValue(existing?.runtime)
+  const existingStudio = objectValue(existing?.studio)
   const capabilities = objectValue(existing?.capabilities)
   const mcp = objectValue(capabilities.mcp)
   const search = objectValue(mcp.search)
@@ -350,6 +359,7 @@ export async function syncGuiManagedKunConfig(
     options?.scheduleMcp?.settings,
     runtime.skillRegistry
   )
+  const settingsForStudio = options?.settings ?? options?.scheduleMcp?.settings
   const next = {
     serve: {
       ...serve,
@@ -359,6 +369,7 @@ export async function syncGuiManagedKunConfig(
     models: modelConfigForRuntime(existingModels),
     contextCompaction: contextCompactionConfigForRuntime(runtime.contextCompaction, existingContextCompaction),
     runtime: runtimeTuningConfigForRuntime(runtime.runtimeTuning, existingRuntimeTuning),
+    studio: studioConfigForSettings(settingsForStudio, existingStudio),
     capabilities: {
       ...capabilities,
       attachments: {
@@ -672,6 +683,39 @@ function runtimeTuningConfigForRuntime(
   }
 }
 
+function studioConfigForSettings(
+  settings: AppSettingsV1 | undefined,
+  existing: Record<string, unknown>
+): Record<string, unknown> {
+  if (!settings) return existing
+  const studio = getStudioSettings(settings)
+  return {
+    ...existing,
+    enabled: studio.enabled,
+    image: studioMediaConfigForSettings(settings, studio.image, objectValue(existing.image)),
+    video: studioMediaConfigForSettings(settings, studio.video, objectValue(existing.video))
+  }
+}
+
+function studioMediaConfigForSettings(
+  settings: AppSettingsV1,
+  media: StudioMediaGenerationSettingsV1,
+  existing: Record<string, unknown>
+): Record<string, unknown> {
+  const provider = getModelProviderProfile(settings, media.providerId)
+  const apiKey = media.apiKey.trim() || provider.apiKey.trim()
+  const baseUrl = media.baseUrl.trim() || provider.baseUrl.trim()
+  return {
+    ...existing,
+    enabled: media.enabled,
+    providerId: media.providerId,
+    providerKind: provider.providerKind,
+    apiKey,
+    baseUrl,
+    model: media.model
+  }
+}
+
 async function readJsonObjectIfExists(path: string): Promise<Record<string, unknown> | null> {
   try {
     const text = await readFile(path, 'utf8')
@@ -726,6 +770,7 @@ function sanitizeKunConfigSections(
       existing.contextCompaction
     ),
     runtime: parseKunConfigSection(RuntimeTuningConfigSchema, existing.runtime),
+    studio: parseKunConfigSection(StudioRuntimeConfigSchema, existing.studio),
     capabilities: sanitizeKunCapabilitiesConfig(existing.capabilities)
   }
 }

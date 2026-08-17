@@ -2,12 +2,19 @@ import type { GuiUpdateChannel } from './gui-update'
 import type { KeyboardShortcutsConfigV1 } from './keyboard-shortcuts'
 import type { ApprovalPolicy, SandboxMode } from '../../kun/src/contracts/policy.js'
 import type { ModelEndpointFormat } from '../../kun/src/contracts/model-endpoint-format.js'
+import type { ModelProviderKind } from '../../kun/src/contracts/model-provider.js'
 export {
   DEFAULT_MODEL_ENDPOINT_FORMAT,
   MODEL_ENDPOINT_FORMATS,
   modelEndpointPath,
   normalizeModelEndpointFormat
 } from '../../kun/src/contracts/model-endpoint-format.js'
+export {
+  DEFAULT_MODEL_PROVIDER_KIND,
+  MODEL_PROVIDER_KINDS,
+  normalizeModelProviderKind,
+  type ModelProviderKind
+} from '../../kun/src/contracts/model-provider.js'
 export { DEFAULT_GUI_UPDATE_CHANNEL, normalizeGuiUpdateChannel, type GuiUpdateChannel } from './gui-update'
 export {
   DEFAULT_APPROVAL_POLICY,
@@ -29,6 +36,7 @@ export type ClawTaskStatus = ScheduleTaskStatus
 export type ClawModel = ScheduleModel
 
 export const DEFAULT_DEEPSEEK_BASE_URL = 'https://api.deepseek.com'
+export const DEFAULT_OPENAI_COMPAT_BASE_URL = 'https://api.openai.com/v1'
 export const DEFAULT_CLAW_MODEL = 'auto'
 export const CLAW_MODEL_IDS = ['auto', 'deepseek-v4-pro', 'deepseek-v4-flash'] as const
 export const DEFAULT_SCHEDULE_MODEL = DEFAULT_CLAW_MODEL
@@ -57,6 +65,7 @@ export type { ModelEndpointFormat }
 export type ModelProviderProfileV1 = {
   id: string
   name: string
+  providerKind: ModelProviderKind
   apiKey: string
   baseUrl: string
   endpointFormat: ModelEndpointFormat
@@ -75,6 +84,32 @@ export type ModelProviderSettingsPatchV1 = Partial<
   providers?: ModelProviderProfilePatchV1[]
 }
 
+export type StudioMediaGenerationSettingsV1 = {
+  enabled: boolean
+  /** Selected shared provider profile. Empty means the default provider. */
+  providerId: string
+  /** Effective provider implementation used by Vercel AI SDK. */
+  providerKind: ModelProviderKind
+  /** Optional capability-only API key override. Empty means inherit the provider profile key. */
+  apiKey: string
+  /** Optional capability-only base URL override. Empty means inherit the provider profile URL. */
+  baseUrl: string
+  model: string
+}
+
+export type StudioSettingsV1 = {
+  /** Hidden by default. When false, the GUI does not show Studio mode. */
+  enabled: boolean
+  image: StudioMediaGenerationSettingsV1
+  video: StudioMediaGenerationSettingsV1
+}
+
+export type StudioMediaGenerationSettingsPatchV1 = Partial<StudioMediaGenerationSettingsV1>
+export type StudioSettingsPatchV1 = Partial<Omit<StudioSettingsV1, 'image' | 'video'>> & {
+  image?: StudioMediaGenerationSettingsPatchV1
+  video?: StudioMediaGenerationSettingsPatchV1
+}
+
 export type KunRuntimeSettingsV1 = {
   binaryPath: string
   port: number
@@ -85,6 +120,8 @@ export type KunRuntimeSettingsV1 = {
   baseUrl: string
   /** Selected General model provider profile. Empty or missing means the default provider. */
   providerId: string
+  /** Effective provider implementation used by Vercel AI SDK. */
+  providerKind: ModelProviderKind
   /** Effective model request format. Resolved from the selected model provider. */
   endpointFormat: ModelEndpointFormat
   runtimeToken: string
@@ -527,12 +564,13 @@ export type AppSettingsV1 = {
   write: WriteSettingsV1
   claw: ClawSettingsV1
   schedule: ScheduleSettingsV1
+  studio: StudioSettingsV1
   guiUpdate: GuiUpdateConfigV1
   codePromptPrefix: string
 }
 
 export type AppSettingsPatch = Partial<
-  Omit<AppSettingsV1, 'provider' | 'agents' | 'log' | 'notifications' | 'appBehavior' | 'keyboardShortcuts' | 'write' | 'claw' | 'schedule' | 'guiUpdate'>
+  Omit<AppSettingsV1, 'provider' | 'agents' | 'log' | 'notifications' | 'appBehavior' | 'keyboardShortcuts' | 'write' | 'claw' | 'schedule' | 'studio' | 'guiUpdate'>
 > & {
   provider?: ModelProviderSettingsPatchV1
   agents?: KunSettingsEnvelopePatchV1
@@ -543,5 +581,6 @@ export type AppSettingsPatch = Partial<
   write?: WriteSettingsPatchV1
   claw?: ClawSettingsPatchV1
   schedule?: ScheduleSettingsPatchV1
+  studio?: StudioSettingsPatchV1
   guiUpdate?: Partial<GuiUpdateConfigV1>
 }

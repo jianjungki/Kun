@@ -17,7 +17,22 @@ const labels: Record<string, string> = {
   agents: 'Agents',
   kunProvider: 'Provider',
   kunProviderDesc: 'Provider description',
+  modelProviderAdd: 'Add provider',
+  modelProviderRemove: 'Remove provider',
+  modelProviderNewName: 'Custom provider {{index}}',
+  modelProviderName: 'Display name',
+  modelProviderId: 'Provider ID',
+  modelProviderKind: 'Provider type',
+  modelProviderKindOpenAiCompatible: 'OpenAI compatible',
+  modelProviderKindOpenAi: 'OpenAI',
+  modelProviderKindAnthropic: 'Anthropic',
+  modelProviderKindGoogle: 'Google Gemini',
+  modelProviderKindMistral: 'Mistral',
+  modelProviderKindXai: 'xAI',
+  modelProviderApiKey: 'API key',
+  modelProviderBaseUrl: 'Base URL',
   modelProviderEndpointFormat: 'Endpoint format',
+  modelProviderModels: 'Models',
   modelEndpointChatCompletions: '/v1/chat/completions',
   modelEndpointResponses: '/v1/responses',
   modelEndpointMessages: '/v1/messages',
@@ -346,6 +361,7 @@ describe('AgentsSettingsSection Kun diagnostics smoke', () => {
     const customProvider = {
       id: 'custom-provider-2',
       name: 'Custom Provider',
+      providerKind: 'openai-compatible',
       apiKey: '',
       baseUrl: 'https://api.example.com/v1',
       endpointFormat: 'responses',
@@ -373,6 +389,7 @@ describe('AgentsSettingsSection Kun diagnostics smoke', () => {
           {
             id: 'custom-provider-2',
             name: 'Custom Provider',
+            providerKind: 'openai-compatible',
             apiKey: '',
             baseUrl: 'https://api.example.com/v1',
             endpointFormat: 'responses',
@@ -393,6 +410,7 @@ describe('AgentsSettingsSection Kun diagnostics smoke', () => {
     const customProvider = {
       id: 'custom-provider-2',
       name: 'Custom Provider',
+      providerKind: 'anthropic',
       apiKey: '',
       baseUrl: 'https://api.example.com/v1',
       endpointFormat: 'messages',
@@ -416,6 +434,8 @@ describe('AgentsSettingsSection Kun diagnostics smoke', () => {
     expect(providerIdInput).toBeTruthy()
     expect(providerIdInput).not.toContain('readOnly')
     expect(providerIdInput).not.toContain('readonly')
+    expect(html).toContain('Provider type')
+    expect(html).toContain('<option value="anthropic" selected="">Anthropic</option>')
     expect(html).toContain('Endpoint format')
     expect(html).toContain('<option value="messages" selected="">/v1/messages</option>')
   })

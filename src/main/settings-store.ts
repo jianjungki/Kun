@@ -11,12 +11,14 @@ import {
   defaultKunRuntimeSettings,
   defaultModelProviderSettings,
   defaultScheduleSettings,
+  defaultStudioSettings,
   getKunRuntimeSettings,
   mergeKunRuntimeSettings,
   mergeModelProviderSettings,
   defaultWriteSettings,
   mergeClawSettings,
   mergeScheduleSettings,
+  mergeStudioSettings,
   mergeWriteSettings,
   normalizeAppBehaviorSettings,
   normalizeKeyboardShortcuts,
@@ -206,7 +208,8 @@ const defaultSettings = (): AppSettingsV1 => ({
   codePromptPrefix: '',
   write: defaultWriteSettings(),
   claw: defaultClawSettings(),
-  schedule: defaultScheduleSettings()
+  schedule: defaultScheduleSettings(),
+  studio: defaultStudioSettings()
 })
 
 function buildMergedSettings(parsed: Partial<AppSettingsV1>): AppSettingsV1 {
@@ -229,6 +232,7 @@ function buildMergedSettings(parsed: Partial<AppSettingsV1>): AppSettingsV1 {
     write: mergeWriteSettings(defaults.write, migrated.write),
     claw: mergeClawSettings(defaults.claw, migrated.claw),
     schedule: mergeScheduleSettings(defaults.schedule, migrated.schedule),
+    studio: mergeStudioSettings(defaults.studio, migrated.studio),
     guiUpdate: { ...defaults.guiUpdate, ...migrated.guiUpdate },
     codePromptPrefix: typeof migrated.codePromptPrefix === 'string' ? migrated.codePromptPrefix : ''
   }
@@ -398,6 +402,7 @@ export class JsonSettingsStore {
       write: mergeWriteSettings(cur.write, partial.write),
       claw: mergeClawSettings(cur.claw, partial.claw),
       schedule: mergeScheduleSettings(cur.schedule, partial.schedule),
+      studio: mergeStudioSettings(cur.studio, partial.studio),
       guiUpdate: { ...cur.guiUpdate, ...(partial.guiUpdate ?? {}) }
     })
     await this.save(next)

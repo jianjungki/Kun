@@ -3,6 +3,8 @@ const { spawnSync } = require('node:child_process')
 
 const REQUIRED_PATHS = [
   'kun/package-lock.json',
+  'kun/node_modules/ai/package.json',
+  'kun/node_modules/@ai-sdk/openai-compatible/package.json',
   'kun/node_modules/@anthropic-ai/sandbox-runtime/package.json',
   'kun/node_modules/diff/package.json',
   'kun/node_modules/zod/package.json',

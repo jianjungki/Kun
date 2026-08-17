@@ -6,6 +6,8 @@ const KUN_RUNTIME_REQUIRED_PATHS = [
   'kun/dist/cli/serve-entry.js',
   'kun/package.json',
   'kun/package-lock.json',
+  'kun/node_modules/ai/package.json',
+  'kun/node_modules/@ai-sdk/openai-compatible/package.json',
   'kun/node_modules/zod/package.json',
   'kun/node_modules/diff/package.json',
   'kun/node_modules/@modelcontextprotocol/sdk/package.json'

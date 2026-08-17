@@ -155,6 +155,7 @@ describe('JsonSettingsStore', () => {
             {
               id: 'custom-provider-2',
               name: 'Custom Provider',
+              providerKind: 'anthropic',
               apiKey: 'sk-custom',
               baseUrl: 'https://custom.example/v1',
               endpointFormat: 'messages',
@@ -182,6 +183,7 @@ describe('JsonSettingsStore', () => {
           id: 'custom-provider-2',
           apiKey: 'sk-custom',
           baseUrl: 'https://custom.example/v1',
+          providerKind: 'anthropic',
           endpointFormat: 'messages',
           models: ['custom-model']
         })
@@ -199,6 +201,7 @@ describe('JsonSettingsStore', () => {
           id: 'custom-provider-2',
           apiKey: 'sk-custom',
           baseUrl: 'https://custom.example/v1',
+          providerKind: 'anthropic',
           endpointFormat: 'messages',
           models: ['custom-model']
         })

@@ -9,7 +9,8 @@ import { InMemoryUserInputGate } from '../adapters/in-memory-user-input-gate.js'
 import { InMemoryEventBus } from '../adapters/in-memory-event-bus.js'
 import { FileSessionStore, FileThreadStore } from '../adapters/file/index.js'
 import { HybridSessionStore, HybridThreadStore } from '../adapters/hybrid/index.js'
-import { DeepseekCompatModelClient } from '../adapters/model/deepseek-compat-model-client.js'
+import { AiSdkModelClient } from '../adapters/model/ai-sdk-model-client.js'
+import { AiSdkMediaGenerationClient } from '../adapters/model/ai-sdk-media-generation-client.js'
 import { CapabilityRegistry } from '../adapters/tool/capability-registry.js'
 import { buildGoalLocalTools } from '../adapters/tool/goal-tools.js'
 import { buildTodoLocalTools } from '../adapters/tool/todo-tools.js'
@@ -38,6 +39,7 @@ import {
   DEFAULT_STORAGE_CONFIG,
   expandHomePath,
   type RuntimeTuningConfig,
+  type StudioConfig,
   type StorageConfig
 } from '../config/kun-config.js'
 import { InflightTracker } from '../loop/inflight-tracker.js'
@@ -57,6 +59,10 @@ import {
   DEFAULT_MODEL_ENDPOINT_FORMAT,
   type ModelEndpointFormat
 } from '../contracts/model-endpoint-format.js'
+import {
+  DEFAULT_MODEL_PROVIDER_KIND,
+  type ModelProviderKind
+} from '../contracts/model-provider.js'
 import { SkillRuntime } from '../skills/skill-runtime.js'
 import { FileMemoryStore } from '../memory/memory-store.js'
 import { DelegationRuntime, FileDelegationStore } from '../delegation/delegation-runtime.js'
@@ -70,6 +76,7 @@ export type KunServeRuntimeOptions = {
   runtimeToken: string
   apiKey: string
   baseUrl: string
+  providerKind?: ModelProviderKind
   endpointFormat?: ModelEndpointFormat
   model: string
   approvalPolicy: ApprovalPolicy
@@ -80,6 +87,7 @@ export type KunServeRuntimeOptions = {
   models?: ModelConfig
   contextCompaction?: ContextCompactionConfig
   runtime?: RuntimeTuningConfig
+  studio?: StudioConfig
   storage?: StorageConfig
   capabilities?: KunCapabilitiesConfig
   startedAt?: string
@@ -142,12 +150,14 @@ export async function createKunServeRuntime(
   const threadService = new ThreadService({ threadStore, sessionStore, events, ids, nowIso })
   const threadCacheEngineMode: ThreadRecord['cacheEngineMode'] = 'hybrid'
   await seedUsageCarryover({ threadStore, sessionStore, usageService })
-  const modelClient = new DeepseekCompatModelClient({
+  const modelClient = new AiSdkModelClient({
+    providerKind: options.providerKind ?? DEFAULT_MODEL_PROVIDER_KIND,
+    providerId: options.providerKind,
     baseUrl: options.baseUrl,
     apiKey: options.apiKey,
-    endpointFormat: options.endpointFormat ?? DEFAULT_MODEL_ENDPOINT_FORMAT,
     model: options.model
   })
+  const mediaGenerationClient = new AiSdkMediaGenerationClient()
   const modelProfiles = modelContextProfilesFromConfig({
     contextCompaction: options.contextCompaction,
     models: options.models
@@ -336,6 +346,8 @@ export async function createKunServeRuntime(
     toolHost,
     ...(attachmentStore ? { attachmentStore } : {}),
     ...(memoryStore ? { memoryStore } : {}),
+    mediaGenerationClient,
+    ...(options.studio ? { studioConfig: options.studio } : {}),
     runTurn(threadId, turnId) {
       return loop.runTurn(threadId, turnId)
     },
@@ -352,6 +364,7 @@ export async function createKunServeRuntime(
       configPath: options.configPath,
       dataDir: options.dataDir,
       model: options.model,
+      providerKind: options.providerKind ?? DEFAULT_MODEL_PROVIDER_KIND,
       endpointFormat: options.endpointFormat ?? DEFAULT_MODEL_ENDPOINT_FORMAT,
       approvalPolicy: options.approvalPolicy,
       sandboxMode: options.sandboxMode,

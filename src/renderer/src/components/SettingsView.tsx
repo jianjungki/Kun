@@ -51,10 +51,11 @@ import {
   GeneralSettingsSection,
   KeyboardShortcutsSettingsSection,
   SkillRegistrySettingsSection,
+  StudioSettingsSection,
   WriteSettingsSection
 } from './settings-sections'
 
-type SettingsCategory = 'general' | 'write' | 'agents' | 'skills' | 'shortcuts' | 'claw'
+type SettingsCategory = 'general' | 'write' | 'agents' | 'skills' | 'shortcuts' | 'claw' | 'studio'
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type SettingsPatch = AppSettingsPatch
 type SkillRootOption = {
@@ -207,6 +208,10 @@ export function SettingsView(): ReactElement {
       setCategory('claw')
       return
     }
+    if (settingsSection === 'studio') {
+      setCategory('studio')
+      return
+    }
     if (settingsSection === 'shortcuts') {
       setCategory('shortcuts')
       return
@@ -221,12 +226,13 @@ export function SettingsView(): ReactElement {
       settingsSection === 'write' ||
       settingsSection === 'skills' ||
       settingsSection === 'claw' ||
+      settingsSection === 'studio' ||
       settingsSection === 'shortcuts' ||
       category !== 'agents'
     ) {
       return
     }
-    const refs: Record<Exclude<SettingsRouteSection, 'general' | 'write' | 'skills' | 'claw' | 'shortcuts'>, HTMLDivElement | null> = {
+    const refs: Record<Exclude<SettingsRouteSection, 'general' | 'write' | 'skills' | 'claw' | 'studio' | 'shortcuts'>, HTMLDivElement | null> = {
       agents: agentsSectionRef.current,
       skill: skillSectionRef.current,
       mcp: mcpSectionRef.current
@@ -517,6 +523,10 @@ export function SettingsView(): ReactElement {
       }
       if (settingsReturnRoute === 'schedule') {
         openSchedule()
+        return
+      }
+      if (settingsReturnRoute === 'studio') {
+        setRoute('studio')
         return
       }
       if (settingsReturnRoute === 'plugins') {
@@ -821,6 +831,7 @@ export function SettingsView(): ReactElement {
           {category === 'skills' ? <SkillRegistrySettingsSection ctx={settingsSectionContext} /> : null}
           {category === 'shortcuts' ? <KeyboardShortcutsSettingsSection ctx={settingsSectionContext} /> : null}
           {category === 'claw' ? <ClawSettingsSection ctx={settingsSectionContext} /> : null}
+          {category === 'studio' ? <StudioSettingsSection ctx={settingsSectionContext} /> : null}
         </div>
       </div>
       {writeDebugModalOpen ? (

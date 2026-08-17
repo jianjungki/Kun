@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
-import type { ApprovalPolicy, KunSkillRegistrySettingsV1, SandboxMode } from '@shared/app-settings'
+import type { AppSettingsV1, ApprovalPolicy, KunSkillRegistrySettingsV1, SandboxMode } from '@shared/app-settings'
 import { parseClawCommand } from '@shared/claw-commands'
 import { DEFAULT_COMPOSER_MODEL_IDS } from '@shared/default-composer-models'
 import { buildGuiPlanId, buildPlanRelativePath } from '@shared/gui-plan'
@@ -99,6 +99,9 @@ const TodoPanel = lazy(() =>
 )
 const ScheduleTasksView = lazy(() =>
   import('./schedule/ScheduleTasksView').then((module) => ({ default: module.ScheduleTasksView }))
+)
+const StudioView = lazy(() =>
+  import('./studio/StudioView').then((module) => ({ default: module.StudioView }))
 )
 
 type PendingSddPlanTarget = {
@@ -261,6 +264,7 @@ export function Workbench(): ReactElement {
     openPlugins,
     openClaw,
     openSchedule,
+    openStudio,
     chooseWorkspace,
     clawChannels,
     activeClawChannelId,
@@ -317,6 +321,7 @@ export function Workbench(): ReactElement {
       openPlugins: s.openPlugins,
       openClaw: s.openClaw,
       openSchedule: s.openSchedule,
+      openStudio: s.openStudio,
       chooseWorkspace: s.chooseWorkspace,
       clawChannels: s.clawChannels,
       activeClawChannelId: s.activeClawChannelId,
@@ -363,6 +368,7 @@ export function Workbench(): ReactElement {
   const [attachmentUploadBusy, setAttachmentUploadBusy] = useState(false)
   const [attachmentUploadError, setAttachmentUploadError] = useState<string | null>(null)
   const [connectPhoneSidebarOpen, setConnectPhoneSidebarOpen] = useState(false)
+  const [studioEnabled, setStudioEnabled] = useState(false)
   const [runtimeLogPath, setRuntimeLogPath] = useState('')
   const writeAssistantOpen = useWriteWorkspaceStore((s) => s.assistantOpen)
   const setWriteAssistantOpen = useWriteWorkspaceStore((s) => s.setAssistantOpen)
@@ -390,6 +396,27 @@ export function Workbench(): ReactElement {
     () => resolveKeyboardShortcutBindings(keyboardShortcuts),
     [keyboardShortcuts]
   )
+
+  useEffect(() => {
+    let cancelled = false
+    const applyStudioVisibility = (settings: AppSettingsV1): void => {
+      if (cancelled) return
+      const enabled = settings.studio?.enabled === true
+      setStudioEnabled(enabled)
+      if (!enabled && useChatStore.getState().route === 'studio') {
+        void useChatStore.getState().openCode()
+      }
+    }
+    void rendererRuntimeClient.getSettings().then(applyStudioVisibility).catch(() => undefined)
+    const onSettingsChanged = (event: Event): void => {
+      applyStudioVisibility((event as CustomEvent<AppSettingsV1>).detail)
+    }
+    window.addEventListener(SETTINGS_CHANGED_EVENT, onSettingsChanged)
+    return () => {
+      cancelled = true
+      window.removeEventListener(SETTINGS_CHANGED_EVENT, onSettingsChanged)
+    }
+  }, [])
 
   const draftByThread = useRef<Record<string, string>>({})
   const prevThreadId = useRef<string | null>(null)
@@ -1497,17 +1524,24 @@ export function Workbench(): ReactElement {
     openSchedule()
   }
 
+  const openStudioMode = (): void => {
+    setConnectPhoneSidebarOpen(false)
+    openStudio()
+  }
+
   const toggleConnectPhone = (): void => {
     if (activeSddDraft) dismissActiveSddDraft({ closeAssistant: true })
     openClaw()
     setConnectPhoneSidebarOpen((open) => !open)
   }
 
-  const sidebarView: 'chat' | 'write' | 'claw' | 'schedule' =
+  const sidebarView: 'chat' | 'write' | 'claw' | 'schedule' | 'studio' =
     route === 'claw' || (route === 'plugins' && pluginHostRoute === 'claw')
       ? 'claw'
       : route === 'schedule'
         ? 'schedule'
+      : route === 'studio'
+        ? 'studio'
       : route === 'write'
         ? 'write'
         : 'chat'
@@ -1678,8 +1712,10 @@ export function Workbench(): ReactElement {
               <WriteSidebar
                 activeView={sidebarView}
                 connectPhoneSidebarOpen={connectPhoneSidebarOpen}
+                studioEnabled={studioEnabled}
                 onCodeOpen={openCodeMode}
                 onWriteOpen={openWriteMode}
+                onStudioOpen={openStudioMode}
                 onOpenSettings={(section) => openSettings(section)}
                 onToggleConnectPhone={toggleConnectPhone}
                 onToggleSidebar={toggleLeftSidebar}
@@ -1690,6 +1726,7 @@ export function Workbench(): ReactElement {
               activeThreadId={activeThreadId}
               activeView={sidebarView}
               connectPhoneSidebarOpen={connectPhoneSidebarOpen}
+              studioEnabled={studioEnabled}
               pluginsActive={route === 'plugins'}
               runtimeReady={runtimeConnection === 'ready'}
               threadSearch={threadSearch}
@@ -1710,6 +1747,7 @@ export function Workbench(): ReactElement {
               onCodeOpen={openCodeMode}
               onWriteOpen={openWriteMode}
               onScheduleOpen={openScheduleView}
+              onStudioOpen={openStudioMode}
               onToggleSidebar={toggleLeftSidebar}
             />
             )}
@@ -1741,6 +1779,14 @@ export function Workbench(): ReactElement {
               <PluginMarketplaceView />
             </Suspense>
           </>
+        ) : route === 'studio' ? (
+          <Suspense fallback={<div className="h-full bg-ds-main" />}>
+            <StudioView
+              leftSidebarCollapsed={leftSidebarCollapsed}
+              onToggleLeftSidebar={toggleLeftSidebar}
+              onOpenSettings={() => openSettings('studio')}
+            />
+          </Suspense>
         ) : route === 'schedule' ? (
           <Suspense fallback={<div className="h-full bg-ds-main" />}>
             <ScheduleTasksView

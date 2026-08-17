@@ -10,6 +10,7 @@ import {
   defaultKunRuntimeSettings,
   defaultModelProviderSettings,
   defaultScheduleSettings,
+  defaultStudioSettings,
   defaultWriteSettings,
   type AppSettingsV1
 } from '../shared/app-settings'
@@ -47,6 +48,7 @@ function createSettings(binaryPath: string): AppSettingsV1 {
     write: defaultWriteSettings(),
     claw: defaultClawSettings(),
     schedule: defaultScheduleSettings(),
+    studio: defaultStudioSettings(),
     guiUpdate: { channel: 'stable' },
     codePromptPrefix: ''
   }
@@ -214,6 +216,61 @@ describe('syncGuiManagedKunConfig', () => {
     expect(parsed.capabilities.attachments).toMatchObject({ enabled: true })
     expect(parsed.capabilities.web).toMatchObject({ enabled: true, fetchEnabled: true })
     expect(parsed.capabilities.mcp.search).toMatchObject({ enabled: false, mode: 'auto' })
+  })
+
+  it('writes effective Studio media provider settings to Kun config', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    const module = await import('./kun-process')
+    const settings = createSettings('/tmp/fake-kun-child.js')
+    settings.provider.providers = settings.provider.providers.map((provider) =>
+      provider.id === 'google' ? { ...provider, apiKey: 'google-key' } : provider
+    )
+    settings.studio = {
+      enabled: true,
+      image: {
+        ...settings.studio.image,
+        enabled: true,
+        providerId: 'openai',
+        apiKey: 'image-key',
+        baseUrl: '',
+        model: 'gpt-image-1'
+      },
+      video: {
+        ...settings.studio.video,
+        enabled: true,
+        providerId: 'google',
+        apiKey: '',
+        baseUrl: '',
+        model: 'veo-3.1-fast-generate-preview'
+      }
+    }
+
+    await module.syncGuiManagedKunConfig(tempRoot, defaultKunRuntimeSettings(), {
+      settings
+    })
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
+    expect(KunConfigSchema.safeParse(parsed).success).toBe(true)
+    expect(parsed.studio).toMatchObject({
+      enabled: true,
+      image: {
+        enabled: true,
+        providerId: 'openai',
+        providerKind: 'openai',
+        apiKey: 'image-key',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-image-1'
+      },
+      video: {
+        enabled: true,
+        providerId: 'google',
+        providerKind: 'google',
+        apiKey: 'google-key',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        model: 'veo-3.1-fast-generate-preview'
+      }
+    })
   })
 
   it('adds the built-in schedule MCP server to Kun runtime capabilities', async () => {

@@ -19,6 +19,8 @@ import type { AttachmentStore } from '../../attachments/attachment-store.js'
 import type { MemoryDiagnostics } from '../../contracts/memory.js'
 import type { MemoryStore } from '../../memory/memory-store.js'
 import type { ReviewTarget } from '../../contracts/review.js'
+import type { StudioRuntimeConfig } from '../../contracts/studio.js'
+import type { MediaGenerationClient } from '../../ports/media-generation-client.js'
 
 export type RuntimeToolDiagnostics = {
   providers: ToolProviderPolicy[]
@@ -49,6 +51,8 @@ export type ServerRuntime = {
   toolHost?: ToolHost
   attachmentStore?: AttachmentStore
   memoryStore?: MemoryStore
+  mediaGenerationClient?: MediaGenerationClient
+  studioConfig?: StudioRuntimeConfig
   runTurn(threadId: string, turnId: string): Promise<'completed' | 'failed' | 'aborted'> | void
   runReview?(input: {
     threadId: string
