@@ -1272,7 +1272,12 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                             ['Skills', runtimeInfo?.capabilities?.skills?.status],
                             ['Subagents', runtimeInfo?.capabilities?.subagents?.status],
                             ['Images', runtimeInfo?.capabilities?.attachments?.status],
-                            ['Memory', runtimeInfo?.capabilities?.memory?.status]
+                            ['Memory', runtimeInfo?.capabilities?.memory?.status],
+                            ['LSP', runtimeInfo?.capabilities?.lsp?.status],
+                            ['Browser', runtimeInfo?.capabilities?.browser?.status],
+                            ['Computer Use', runtimeInfo?.capabilities?.computerUse?.status],
+                            ['Graph', runtimeInfo?.capabilities?.graph?.status],
+                            ['Extensions', runtimeInfo?.capabilities?.extensions?.status]
                           ].map(([label, status]) => (
                             <span
                               key={label}
@@ -1295,6 +1300,12 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                           </div>
                           <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
                             Web: <span className="font-mono text-ds-ink">{runtimeInfo?.capabilities?.web?.provider ?? 'none'}</span>
+                          </div>
+                          <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
+                            LSP: <span className="font-mono text-ds-ink">{runtimeInfo?.capabilities?.lsp?.connectedServers ?? 0}/{runtimeInfo?.capabilities?.lsp?.configuredServers ?? 0}</span>
+                          </div>
+                          <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
+                            Extensions: <span className="font-mono text-ds-ink">{runtimeInfo?.capabilities?.extensions?.toolCount ?? 0} tools</span>
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -1329,6 +1340,12 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                         </div>
                         <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
                           {t('kunDiagnosticsAttachments')}: <span className="font-mono text-ds-ink">{toolDiagnostics?.attachments?.count ?? 0}</span>
+                        </div>
+                        <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
+                          LSP servers: <span className="font-mono text-ds-ink">{toolDiagnostics?.lspServers?.length ?? 0}</span>
+                        </div>
+                        <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
+                          Extensions: <span className="font-mono text-ds-ink">{toolDiagnostics?.extensions?.length ?? 0}</span>
                         </div>
                       </div>
                     }

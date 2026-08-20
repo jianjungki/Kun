@@ -18,6 +18,7 @@ const MS_PER_DAY = 86_400_000
  */
 export class FileSessionStore implements SessionStore {
   private readonly dataDir: string
+  private readonly writeTails = new Map<string, Promise<void>>()
   private readonly usageEventCompaction: {
     maxBytes: number
     retentionDays: number
@@ -47,36 +48,44 @@ export class FileSessionStore implements SessionStore {
   }
 
   async appendEvent(threadId: string, event: RuntimeEvent): Promise<void> {
-    await this.ensureDir(this.threadDir(threadId))
-    const path = this.eventsPath(threadId)
-    await appendFile(path, `${JSON.stringify(event)}\n`, 'utf-8')
-    if (event.kind === 'usage') {
-      await this.compactUsageEventsIfLarge(threadId).catch((error) => {
-        warnUsageCompaction(threadId, error)
-      })
-    }
+    await this.withThreadWrite(threadId, async () => {
+      await this.ensureDir(this.threadDir(threadId))
+      const path = this.eventsPath(threadId)
+      await appendFile(path, `${JSON.stringify(event)}\n`, 'utf-8')
+      if (event.kind === 'usage') {
+        await this.compactUsageEventsIfLarge(threadId).catch((error) => {
+          warnUsageCompaction(threadId, error)
+        })
+      }
+    })
   }
 
   async appendItem(threadId: string, item: TurnItem): Promise<void> {
-    await this.ensureDir(this.threadDir(threadId))
-    const path = this.messagesPath(threadId)
-    await appendFile(path, `${JSON.stringify(item)}\n`, 'utf-8')
+    await this.withThreadWrite(threadId, async () => {
+      await this.ensureDir(this.threadDir(threadId))
+      const path = this.messagesPath(threadId)
+      await appendFile(path, `${JSON.stringify(item)}\n`, 'utf-8')
+    })
   }
 
   async rewriteItems(threadId: string, items: TurnItem[]): Promise<void> {
-    await this.ensureDir(this.threadDir(threadId))
-    const contents = items.map((item) => JSON.stringify(item)).join('\n')
-    await this.atomicWrite(this.messagesPath(threadId), contents ? `${contents}\n` : '')
+    await this.withThreadWrite(threadId, async () => {
+      await this.ensureDir(this.threadDir(threadId))
+      const contents = items.map((item) => JSON.stringify(item)).join('\n')
+      await this.atomicWrite(this.messagesPath(threadId), contents ? `${contents}\n` : '')
+    })
   }
 
   async updateItem(threadId: string, itemId: string, patch: Partial<TurnItem>): Promise<TurnItem | null> {
-    const items = await this.loadItems(threadId)
-    const current = items.find((item) => item.id === itemId)
-    if (!current) return null
-    const updated = { ...current, ...patch } as TurnItem
-    await this.ensureDir(this.threadDir(threadId))
-    await appendFile(this.messagesPath(threadId), `${JSON.stringify(updated)}\n`, 'utf-8')
-    return updated
+    return this.withThreadWrite(threadId, async () => {
+      const items = await this.loadItems(threadId)
+      const current = items.find((item) => item.id === itemId)
+      if (!current) return null
+      const updated = { ...current, ...patch } as TurnItem
+      await this.ensureDir(this.threadDir(threadId))
+      await appendFile(this.messagesPath(threadId), `${JSON.stringify(updated)}\n`, 'utf-8')
+      return updated
+    })
   }
 
   async loadEventsSince(threadId: string, sinceSeq: number): Promise<RuntimeEvent[]> {
@@ -113,8 +122,10 @@ export class FileSessionStore implements SessionStore {
   }
 
   async upsertSession(session: AgentSession): Promise<void> {
-    await this.ensureDir(this.threadDir(session.threadId))
-    await this.atomicWrite(this.sessionPath(session.threadId), JSON.stringify(session))
+    await this.withThreadWrite(session.threadId, async () => {
+      await this.ensureDir(this.threadDir(session.threadId))
+      await this.atomicWrite(this.sessionPath(session.threadId), JSON.stringify(session))
+    })
   }
 
   async highestSeq(threadId: string): Promise<number> {
@@ -146,8 +157,12 @@ export class FileSessionStore implements SessionStore {
     await mkdir(path, { recursive: true })
   }
 
-  private async atomicWrite(path: string, contents: string): Promise<void> {
-    await atomicWriteFile(path, contents)
+  private async atomicWrite(
+    path: string,
+    contents: string,
+    options: { directWriteFallback?: boolean } = {}
+  ): Promise<void> {
+    await atomicWriteFile(path, contents, options)
   }
 
   private async compactUsageEventsIfLarge(threadId: string): Promise<void> {
@@ -161,7 +176,23 @@ export class FileSessionStore implements SessionStore {
     })
     if (compacted.length >= events.length) return
     const contents = compacted.map((event) => JSON.stringify(event)).join('\n')
-    await this.atomicWrite(path, contents ? `${contents}\n` : '')
+    await this.atomicWrite(path, contents ? `${contents}\n` : '', {
+      directWriteFallback: false
+    })
+  }
+
+  private async withThreadWrite<T>(threadId: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.writeTails.get(threadId) ?? Promise.resolve()
+    const run = previous.catch(() => undefined).then(operation)
+    const tail = run.then(() => undefined, () => undefined)
+    this.writeTails.set(threadId, tail)
+    try {
+      return await run
+    } finally {
+      if (this.writeTails.get(threadId) === tail) {
+        this.writeTails.delete(threadId)
+      }
+    }
   }
 
   /** Used by the loop during shutdown to verify the file actually exists. */

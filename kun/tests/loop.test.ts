@@ -99,7 +99,7 @@ describe('AgentLoop', () => {
     expect(status).toBe('failed')
     expect(failed).toMatchObject({
       kind: 'turn_failed',
-      message: 'model stream exploded'
+      message: expect.stringContaining('model stream exploded')
     })
   })
 
@@ -439,7 +439,7 @@ describe('AgentLoop', () => {
 	    expect(items.find((item) => item.kind === 'error' && item.code === 'tool_catalog_changed'))
 	      .toMatchObject({
 	        kind: 'error',
-	        message: expect.stringContaining('Kun stopped this turn')
+	        message: expect.stringContaining('PengCodex Core stopped this turn')
 	      })
 	  })
 

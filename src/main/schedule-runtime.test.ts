@@ -8,6 +8,7 @@ import {
   defaultKunRuntimeSettings,
   defaultModelProviderSettings,
   defaultScheduleSettings,
+  defaultStudioSettings,
   defaultWriteSettings,
   mergeScheduleSettings,
   type AppSettingsPatch,
@@ -73,6 +74,7 @@ function settingsWith(
       tasks,
       ...schedulePatch
     }),
+    studio: defaultStudioSettings(),
     guiUpdate: { channel: 'stable' },
     codePromptPrefix: ''
   }

@@ -3,15 +3,15 @@
 PengCodex Core is the local HTTP/SSE agent runtime for PengCodex. It exposes a
 TypeScript-typed agent loop with a stable, GUI-friendly contract:
 
-- `kun serve` starts a local HTTP server with `/v1/*` routes.
+- `pengcodex serve` starts a local HTTP server with `/v1/*` routes.
 - Threads, turns, events, approvals, and usage are persisted as append-only
   JSONL logs with atomic index updates.
 - The loop is cache-first by construction: immutable prompt prefix, bounded
   TTL/LRU caches, inflight tracking, and explicit context compaction.
 
 PengCodex Core is the new public name for the runtime that previously used
-`Kun` as its product-facing name. The `kun/` package name, CLI command, and
-some settings keys remain as compatibility surfaces during the transition.
+`Kun` as its product-facing name. The `kun/` package name, legacy `kun` CLI
+alias, and some settings keys remain as compatibility surfaces during the transition.
 In PengCodex, this layer is a deeper local runtime rather than a thin model UI:
 one agent loop that can carry project context, call tools reliably, resume
 sessions, and serve desktop chat, writing, phone connections, and scheduled
@@ -54,7 +54,7 @@ Run from the `kun/` directory.
 
 ## CLI
 
-`kun serve` accepts the following flags:
+`pengcodex serve` accepts the following flags:
 
 | Flag | Description | Default |
 | --- | --- | --- |
@@ -62,7 +62,7 @@ Run from the `kun/` directory.
 | `--host` | Bind address | `127.0.0.1` |
 | `--port` | HTTP port | `8899` |
 | `--data-dir` | Root directory for threads, events, and usage | required |
-| `--runtime-token` | Bearer token for `/v1/*` requests | empty |
+| `--runtime-token` | Bearer token for `/v1/*` requests | generated in `{data-dir}/runtime-token` |
 | `--api-key` | DeepSeek-compatible API key | empty |
 | `--base-url` | DeepSeek-compatible model API base URL | `https://api.deepseek.com/beta` |
 | `--model` | Default model id | `deepseek-v4-pro` |
@@ -73,7 +73,7 @@ Run from the `kun/` directory.
 Example:
 
 ```bash
-kun serve \
+pengcodex serve \
   --config ~/.pengcodex/runtime/config.json \
   --host 127.0.0.1 \
   --port 8899 \
@@ -83,19 +83,26 @@ kun serve \
   --model deepseek-v4-pro
 ```
 
+When `--runtime-token`, `KUN_RUNTIME_TOKEN`, and `serve.runtimeToken` are all
+empty, `pengcodex serve` creates and reuses `{data-dir}/runtime-token` with
+user-only file permissions. The ready JSON reports `runtimeTokenPath` but never
+prints the credential. `--insecure` is the only way to explicitly disable auth.
+
 PengCodex Core can also run as a standalone agent without the GUI:
 
 ```bash
-kun run --data-dir ~/.pengcodex/runtime --workspace "$PWD" "summarize this repo"
-kun chat --data-dir ~/.pengcodex/runtime --workspace "$PWD"
-kun exec --data-dir ~/.pengcodex/runtime --workspace "$PWD" --list-tools
-kun exec --data-dir ~/.pengcodex/runtime --workspace "$PWD" read --args '{"path":"README.md"}'
+pengcodex run --data-dir ~/.pengcodex/runtime --workspace "$PWD" "summarize this repo"
+pengcodex chat --data-dir ~/.pengcodex/runtime --workspace "$PWD"
+pengcodex exec --data-dir ~/.pengcodex/runtime --workspace "$PWD" --list-tools
+pengcodex exec --data-dir ~/.pengcodex/runtime --workspace "$PWD" read --args '{"path":"README.md"}'
 ```
 
-- `kun run` creates a thread, runs one turn, streams assistant text, and exits.
-- `kun chat` starts a line-oriented REPL. Use `/exit`, `/quit`, or an empty line to stop.
-- `kun exec --list-tools` prints the effective dynamic tool registry for the chosen config/workspace.
-- `kun exec <tool> --args <json>` invokes one tool directly. Use `--json` on `run` or `exec` for machine-readable output.
+- `pengcodex run` creates a thread, runs one turn, streams assistant text, and exits.
+- `pengcodex chat` starts a line-oriented REPL. Use `/exit`, `/quit`, or an empty line to stop.
+- `pengcodex exec --list-tools` prints the effective dynamic tool registry for the chosen config/workspace.
+- `pengcodex exec <tool> --args <json>` invokes one tool directly. Use `--json` on `run` or `exec` for machine-readable output.
+- `pengcodex runtime status --data-dir <dir>` inspects a discovered local runtime.
+- `pengcodex extension list|validate|install|remove` manages declarative command extensions. Add `--json` for stable script output.
 
 ## Environment variables
 
@@ -235,6 +242,40 @@ Shape:
       "enabled": false,
       "scopes": ["user", "workspace", "project"],
       "maxInjectedRecords": 8
+    },
+    "lsp": {
+      "enabled": false,
+      "servers": {
+        "typescript": {
+          "command": "typescript-language-server",
+          "args": ["--stdio"],
+          "extensions": ["ts", "tsx", "js", "jsx"]
+        }
+      }
+    },
+    "browser": {
+      "enabled": false,
+      "headless": true,
+      "allowedDomains": [],
+      "maxActionsPerTurn": 40
+    },
+    "computerUse": {
+      "enabled": false,
+      "backend": "nutjs"
+    },
+    "graph": {
+      "enabled": false,
+      "maxParallel": 2,
+      "maxNodes": 12,
+      "failFast": false
+    },
+    "extensions": {
+      "enabled": false,
+      "roots": [],
+      "trustedWorkspaceRoots": ["/path/to/workspace"],
+      "allowExecutables": ["node"],
+      "envAllowlist": [],
+      "maxOutputBytes": 1048576
     }
   }
 }
@@ -268,6 +309,34 @@ Feature flags are intentionally explicit:
 - `capabilities.attachments` stores image bytes outside thread logs and allows turns to reference `attachmentIds`. Vision-capable models receive image parts; text-only models receive a bounded compressed base64 text fallback.
 - `capabilities.memory` stores long-term records under the data dir, retrieves scoped matches before turns, and exposes `memory_create`, `memory_update`, and `memory_delete` tools.
 - `capabilities.subagents` exposes `delegate_task` with `maxParallel` and `maxChildRuns` concurrency budgets.
+- `capabilities.lsp` exposes one bounded `lsp_query` tool over configured stdio language servers. Files are restricted to the active workspace.
+- `capabilities.browser` provides an isolated CDP page with open, snapshot, click, type, screenshot, and close operations. Domain and per-turn action limits are config-owned.
+- `capabilities.computerUse` provides host screenshot, pointer, and keyboard actions through an optional Apache-2.0 native backend. It remains unavailable when the packaged backend is absent.
+- `capabilities.graph` runs dependency-validated child-agent DAGs over the existing delegation runtime. It requires both Graph and subagents to be enabled.
+- `capabilities.extensions` loads only declarative `pengcodex-extension.json` manifests. Commands, workspaces, environment variables, timeouts, and output sizes must pass explicit allowlists.
+
+All five capabilities are disabled by default. Browser and Computer Use actions use the existing approval policy, and Graph does not recursively expose itself to child agents.
+
+An extension manifest declares commands rather than executable JavaScript imports:
+
+```json
+{
+  "manifestVersion": 1,
+  "id": "example.tools",
+  "name": "Example Tools",
+  "version": "1.0.0",
+  "tools": [{
+    "name": "inspect",
+    "description": "Inspect structured workspace data",
+    "executable": "node",
+    "args": ["tool.mjs"],
+    "inputSchema": { "type": "object", "properties": {} },
+    "cwd": "extension",
+    "output": "json",
+    "timeoutMs": 30000
+  }]
+}
+```
 
 Use `GET /v1/runtime/info` for the runtime capability manifest and
 `GET /v1/runtime/tools` for redacted provider diagnostics. The GUI
@@ -403,10 +472,10 @@ stay local to one thread, leave it as a pinned constraint.
   `/v1/memory/diagnostics.enabled`, make sure records are in the
   selected workspace scope and not disabled/deleted, then inspect
   `lastInjectedIds`.
-- `kun run`, `kun chat`, or `kun exec` cannot authenticate or load
+- `pengcodex run`, `pengcodex chat`, or `pengcodex exec` cannot authenticate or load
   config: pass the same `--config`, `--data-dir`, `--api-key`,
-  `--base-url`, and `--runtime-token` values used by `kun serve`.
-  `kun exec --list-tools --json` is the quickest way to verify the
+  `--base-url`, and `--runtime-token` values used by `pengcodex serve`.
+  `pengcodex exec --list-tools --json` is the quickest way to verify the
   effective tool registry for a CLI environment.
 - A capability reports `disabled`: that normally means the config flag
   is false. A capability reports `unavailable`: the flag is true, but

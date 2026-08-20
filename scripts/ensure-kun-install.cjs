@@ -6,7 +6,9 @@ const REQUIRED_PATHS = [
   'kun/node_modules/ai/package.json',
   'kun/node_modules/@ai-sdk/openai-compatible/package.json',
   'kun/node_modules/@anthropic-ai/sandbox-runtime/package.json',
+  'kun/node_modules/@computer-use/nut-js/package.json',
   'kun/node_modules/diff/package.json',
+  'kun/node_modules/jimp/package.json',
   'kun/node_modules/zod/package.json',
   'kun/node_modules/@modelcontextprotocol/sdk/package.json'
 ]

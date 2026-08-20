@@ -98,6 +98,10 @@ describe('electron-builder Kun packaging', () => {
     ]))
   })
 
+  it('runs the PengCodex CLI PATH hooks during Windows install and uninstall', () => {
+    expect(builderConfig.nsis.include).toBe('build/installer.nsh')
+  })
+
   it('validates the unpacked Kun runtime before release artifacts are created', () => {
     const root = tempRoot()
     const context = createMacPackContext(root)

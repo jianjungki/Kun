@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
@@ -36,6 +37,11 @@ const DEFAULT_WORKSPACE_ROOT = join(homedir(), '.pengcodex', 'default_workspace'
 const DEFAULT_CLAW_CHANNELS_ROOT = join(homedir(), '.pengcodex', 'claw')
 const DEFAULT_WRITE_WORKSPACE_ROOT_ABSOLUTE = expandHomePath(DEFAULT_WRITE_WORKSPACE_ROOT)
 const SETTINGS_FILE_NAME = 'pengcodex-settings.json'
+const SETTINGS_FILE_MODE = 0o600
+const SETTINGS_DIR_MODE = 0o700
+const RUNTIME_TOKEN_BYTES = 32
+const ENCRYPTED_SECRET_PREFIX = 'pengcodex-safe:v1:'
+const SECRET_FIELD_NAMES = new Set(['apiKey', 'fetchApiKey', 'runtimeToken', 'secret', 'appSecret', 'sessionKey'])
 const COMPATIBLE_SETTINGS_FILE_NAMES = [SETTINGS_FILE_NAME, 'deepseek-gui-settings.json'] as const
 const COMPATIBLE_USER_DATA_DIR_NAMES = ['PengCodex', 'pengcodex', 'deepseek-gui', 'DeepSeek GUI'] as const
 const WELCOME_MARKDOWN = `# Welcome to Write
@@ -117,6 +123,8 @@ function normalizeClawConversationWorkspaceRoot(
 
 function normalizeStoredSettings(settings: AppSettingsV1): AppSettingsV1 {
   const normalized = normalizeAppSettings(settings)
+  const runtimeToken = normalized.agents.kun.runtimeToken.trim() ||
+    (normalized.agents.kun.insecure ? '' : randomBytes(RUNTIME_TOKEN_BYTES).toString('base64url'))
   const writeDefaultRoot = normalizeWriteWorkspaceRoot(normalized.write.defaultWorkspaceRoot)
   const writeActiveRoot = normalizeWriteWorkspaceRoot(normalized.write.activeWorkspaceRoot || writeDefaultRoot)
   const writeWorkspaces = [...new Set(
@@ -125,6 +133,13 @@ function normalizeStoredSettings(settings: AppSettingsV1): AppSettingsV1 {
   )]
   return {
     ...normalized,
+    agents: {
+      ...normalized.agents,
+      kun: {
+        ...normalized.agents.kun,
+        runtimeToken
+      }
+    },
     workspaceRoot: normalizeWorkspaceRoot(normalized.workspaceRoot),
     write: {
       defaultWorkspaceRoot: writeDefaultRoot,
@@ -146,8 +161,17 @@ function normalizeStoredSettings(settings: AppSettingsV1): AppSettingsV1 {
   }
 }
 
-function serializeSettingsForDisk(settings: AppSettingsV1): string {
-  return JSON.stringify(normalizeStoredSettings(settings), null, 2)
+export type SettingsSecretCodec = {
+  encrypt(value: string): string
+  decrypt(value: string): string
+}
+
+function serializeSettingsForDisk(settings: AppSettingsV1, codec?: SettingsSecretCodec): string {
+  const normalized = normalizeStoredSettings(settings)
+  const diskSettings = codec
+    ? transformSecretFields(normalized, (value) => value ? `${ENCRYPTED_SECRET_PREFIX}${codec.encrypt(value)}` : value)
+    : normalized
+  return JSON.stringify(diskSettings, null, 2)
 }
 
 export async function ensureWorkspaceRootExists(workspaceRoot: string): Promise<string> {
@@ -257,7 +281,7 @@ async function writeInvalidSettingsBackup(path: string, raw: string): Promise<st
     `${basename(path, '.json')}.invalid-${stamp}.json`
   )
   try {
-    await writeFile(backupPath, raw, 'utf8')
+    await atomicWriteFile(backupPath, raw, { mode: SETTINGS_FILE_MODE })
     return backupPath
   } catch {
     return null
@@ -314,7 +338,7 @@ export class JsonSettingsStore {
   private path: string
   private cache: AppSettingsV1 | null = null
 
-  constructor(userDataPath: string) {
+  constructor(userDataPath: string, private readonly secretCodec?: SettingsSecretCodec) {
     this.path = join(userDataPath, SETTINGS_FILE_NAME)
   }
 
@@ -326,8 +350,9 @@ export class JsonSettingsStore {
     try {
       const loaded = await readSettingsFileWithCompatibility(this.path)
       if (!loaded) {
-        this.cache = await loadDefaultSettings()
-        return this.cache
+        const defaults = await loadDefaultSettings()
+        await this.save(defaults)
+        return defaults
       }
       raw = loaded.raw
       sourcePath = loaded.sourcePath
@@ -338,7 +363,7 @@ export class JsonSettingsStore {
 
     let parsed: Partial<AppSettingsV1>
     try {
-      parsed = JSON.parse(raw) as Partial<AppSettingsV1>
+      parsed = decryptStoredSecrets(JSON.parse(raw) as Partial<AppSettingsV1>, this.secretCodec)
     } catch (error) {
       if (error instanceof SyntaxError) {
         const backupPath = await writeInvalidSettingsBackup(sourcePath, raw)
@@ -364,7 +389,14 @@ export class JsonSettingsStore {
     await ensureWriteWorkspaceRootsExist(normalized)
     await ensureClawChannelWorkspaceRootsExist(normalized)
     this.cache = normalized
-    if (sourcePath !== this.path) {
+    const generatedRuntimeToken =
+      !normalized.agents.kun.insecure &&
+      !storedRuntimeToken(parsed).trim()
+    if (
+      sourcePath !== this.path ||
+      generatedRuntimeToken ||
+      (this.secretCodec && containsPlaintextSecrets(parsed))
+    ) {
       await this.save(normalized)
     }
     return this.cache
@@ -376,8 +408,10 @@ export class JsonSettingsStore {
     await ensureWriteWorkspaceRootsExist(normalized)
     await ensureClawChannelWorkspaceRootsExist(normalized)
     this.cache = normalized
-    await mkdir(dirname(this.path), { recursive: true })
-    await atomicWriteFile(this.path, serializeSettingsForDisk(normalized))
+    await mkdir(dirname(this.path), { recursive: true, mode: SETTINGS_DIR_MODE })
+    await atomicWriteFile(this.path, serializeSettingsForDisk(normalized, this.secretCodec), {
+      mode: SETTINGS_FILE_MODE
+    })
   }
 
   async patch(partial: AppSettingsPatch): Promise<AppSettingsV1> {
@@ -408,6 +442,48 @@ export class JsonSettingsStore {
     await this.save(next)
     return next
   }
+}
+
+function storedRuntimeToken(value: Partial<AppSettingsV1>): string {
+  const token = value.agents?.kun?.runtimeToken
+  return typeof token === 'string' ? token : ''
+}
+
+function decryptStoredSecrets<T>(value: T, codec?: SettingsSecretCodec): T {
+  return transformSecretFields(value, (secret) => {
+    if (!secret.startsWith(ENCRYPTED_SECRET_PREFIX)) return secret
+    if (!codec) throw new Error('Settings contain encrypted credentials, but secure storage is unavailable')
+    try {
+      return codec.decrypt(secret.slice(ENCRYPTED_SECRET_PREFIX.length))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`Failed to decrypt stored credential: ${message}`, { cause: error })
+    }
+  })
+}
+
+function containsPlaintextSecrets(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  if (Array.isArray(value)) return value.some(containsPlaintextSecrets)
+  return Object.entries(value).some(([key, entry]) =>
+    SECRET_FIELD_NAMES.has(key) && typeof entry === 'string' && entry.length > 0
+      ? !entry.startsWith(ENCRYPTED_SECRET_PREFIX)
+      : containsPlaintextSecrets(entry)
+  )
+}
+
+function transformSecretFields<T>(value: T, transform: (value: string) => string): T {
+  if (Array.isArray(value)) {
+    return value.map((entry) => transformSecretFields(entry, transform)) as T
+  }
+  if (!value || typeof value !== 'object') return value
+  const transformed = Object.fromEntries(Object.entries(value).map(([key, entry]) => [
+    key,
+    SECRET_FIELD_NAMES.has(key) && typeof entry === 'string'
+      ? transform(entry)
+      : transformSecretFields(entry, transform)
+  ]))
+  return transformed as T
 }
 
 export function getRuntimeBaseUrl(port: number): string {

@@ -21,12 +21,16 @@ import type { MemoryStore } from '../../memory/memory-store.js'
 import type { ReviewTarget } from '../../contracts/review.js'
 import type { StudioRuntimeConfig } from '../../contracts/studio.js'
 import type { MediaGenerationClient } from '../../ports/media-generation-client.js'
+import type { LspProviderDiagnostic } from '../../adapters/tool/lsp-tool-provider.js'
+import type { ExtensionDiagnostic } from '../../extensions/extension-runtime.js'
 
 export type RuntimeToolDiagnostics = {
   providers: ToolProviderPolicy[]
   mcpServers: McpServerDiagnostic[]
   mcpSearch?: McpSearchRuntimeDiagnostic
   webProviders: WebProviderDiagnostic[]
+  lspServers?: LspProviderDiagnostic[]
+  extensions?: ExtensionDiagnostic[]
   skills: SkillRuntimeDiagnostics
   attachments: AttachmentDiagnostics
   memory: MemoryDiagnostics

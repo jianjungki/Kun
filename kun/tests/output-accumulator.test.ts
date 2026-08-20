@@ -19,6 +19,14 @@ describe('OutputAccumulator', () => {
     expect(output.snapshot().content).toBe('hello\n世界')
   })
 
+  it('exposes short UTF-8 chunks before the process exits', () => {
+    const output = createAccumulator()
+
+    output.append(Buffer.from('ready\n', 'utf8'))
+
+    expect(output.snapshot().content).toBe('ready\n')
+  })
+
   it('decodes UTF-16LE command output from Windows PowerShell pipes', () => {
     const output = createAccumulator()
 

@@ -18,6 +18,7 @@ export * from './builtin-file-tools.js'
 export * from './builtin-search-tools.js'
 export * from './builtin-bash-tool.js'
 export * from './sandbox-runtime.js'
+export * from './sandbox-policy.js'
 
 export function createBuiltinLocalTool(
   toolName: BuiltinToolName,

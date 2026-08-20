@@ -20,6 +20,7 @@ import {
   defaultKunRuntimeSettings,
   defaultModelProviderSettings,
   defaultScheduleSettings,
+  defaultStudioSettings,
   defaultWriteSettings,
   type AppSettingsV1
 } from '../shared/app-settings'
@@ -47,6 +48,7 @@ function createSettings(patch: Partial<AppSettingsV1['schedule']['internal']> = 
     appBehavior: { openAtLogin: false, startMinimized: false, closeToTray: false },
     keyboardShortcuts: defaultKeyboardShortcuts(),
     write: defaultWriteSettings(),
+    studio: defaultStudioSettings(),
     schedule: {
       ...schedule,
       internal: {

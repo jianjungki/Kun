@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readJsonBody } from '../src/server/read-json-body.js'
+import { MAX_JSON_BODY_BYTES, readJsonBody } from '../src/server/read-json-body.js'
 
 describe('readJsonBody', () => {
   it('returns an empty object for requests without a body', async () => {
@@ -33,6 +33,22 @@ describe('readJsonBody', () => {
     expect(JSON.parse(result.response.body)).toMatchObject({
       code: 'validation_error',
       message: 'invalid JSON body'
+    })
+  })
+
+  it('rejects oversized bodies before parsing them', async () => {
+    const result = await readJsonBody(new Request('http://localhost/v1/demo', {
+      method: 'POST',
+      headers: { 'content-length': String(MAX_JSON_BODY_BYTES + 1) },
+      body: '{}'
+    }))
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.response.status).toBe(413)
+    expect(JSON.parse(result.response.body)).toMatchObject({
+      code: 'validation_error',
+      message: expect.stringContaining('byte limit')
     })
   })
 })

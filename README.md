@@ -34,6 +34,7 @@ PengCodex 从 DeepSeek-GUI 与 Kun 本地运行时演进而来。新的品牌把
 - **连接手机**：通过飞书 / Lark / 微信等 IM 入口，让后台 Agent 处理消息、webhook 与移动端协作。
 - **定时任务**：按一次性、每日、间隔或手动计划执行任务，并将结果沉淀到独立会话。
 - **Skill / MCP / 外部工具**：在图形界面管理技能、外部工具连接和工具筛选策略。
+- **开发工具编排**：按需开启 Browser Use、Computer Use、LSP、子 Agent DAG 与声明式 Extension；这些高权限能力默认关闭并沿用审批、工作区和白名单边界。
 - **高 Token ROI**：稳定 prompt 前缀，跟踪模型缓存命中，按需压缩工具结果和历史上下文，把 token 留给需求、代码、决策和结果。
 - **本地优先**：设置、会话、日志、运行时配置和写作空间默认保存在本机，模型调用使用你自己的 API Key。
 
@@ -90,6 +91,16 @@ Write 支持 live/source/split/preview 视图，支持 `HTML / PDF / DOC / DOCX`
 | Linux | `.AppImage`，x64 |
 
 首次启动需要配置模型 API Key。默认使用 DeepSeek 官方 API；如果你使用兼容 OpenAI/DeepSeek 的服务，也可以在设置里修改 Base URL、模型和端点格式。
+
+安装包会提供 `pengcodex` 命令：Windows 安装/卸载时同步用户 `PATH`，macOS 与 Ubuntu 在首次启动时创建用户级 launcher 并更新对应 shell profile。新开一个终端后可直接运行：
+
+```bash
+pengcodex --help
+pengcodex runtime status --data-dir ~/.pengcodex/runtime
+pengcodex extension list --data-dir ~/.pengcodex/runtime
+```
+
+旧的 `kun` 命令仍作为兼容别名保留。CLI 复用应用自带运行时，不要求用户另装 Node.js。
 
 ### 从源码运行
 

@@ -16,6 +16,11 @@ export type ToolProviderKind =
   | 'memory'
   | 'gui'
   | 'delegation'
+  | 'browser'
+  | 'computer-use'
+  | 'lsp'
+  | 'graph'
+  | 'extension'
 
 export type ToolProviderPolicy = {
   id: string

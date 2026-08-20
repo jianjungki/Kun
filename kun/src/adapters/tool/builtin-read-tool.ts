@@ -7,6 +7,7 @@ import {
   getReadClassification,
   isBinaryBuffer,
   normalizePositiveInteger,
+  assertWorkspacePathBoundary,
   resolveWorkspacePath,
   withToolBoundary
 } from './builtin-tool-utils.js'
@@ -36,6 +37,9 @@ export function createReadLocalTool(options: ReadLocalToolOptions = {}): LocalTo
       const rawPath = typeof args.path === 'string' ? args.path : ''
       if (!rawPath.trim()) return { output: { error: 'path is required' }, isError: true }
       const { absolutePath, relativePath } = resolveWorkspacePath(rawPath, context)
+      if (!options.operations) {
+        await assertWorkspacePathBoundary(context.workspace, absolutePath, 'read')
+      }
       await statOp(absolutePath)
       const fileBuffer = await readFileOp(absolutePath)
       const classification = getReadClassification(absolutePath, context.workspace)

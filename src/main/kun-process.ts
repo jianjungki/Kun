@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -27,15 +27,21 @@ import {
   RuntimeTuningConfigSchema,
   StudioRuntimeConfigSchema
 } from '../../kun/src/config/kun-config.js'
+import { atomicWriteFile } from '../../kun/src/adapters/file/atomic-write.js'
 import {
   AttachmentsCapabilityConfig,
+  BrowserCapabilityConfig,
+  ComputerUseCapabilityConfig,
+  ExtensionsCapabilityConfig,
+  GraphCapabilityConfig,
+  LspCapabilityConfig,
   McpCapabilityConfig,
-  McpServerConfig,
   MemoryCapabilityConfig,
   SkillsCapabilityConfig,
   SubagentsCapabilityConfig,
   WebCapabilityConfig
 } from '../../kun/src/contracts/capabilities.js'
+import { normalizeImportedMcpServers } from '../../kun/src/config/mcp-config-import.js'
 import {
   buildClawScheduleMcpArgs,
   GUI_SCHEDULE_MCP_SERVER_NAME,
@@ -56,6 +62,7 @@ const KUN_STOP_GRACE_MS = 5_000
 const KUN_STOP_FORCE_MS = 1_000
 const STDERR_TAIL_MAX_CHARS = 4_000
 const GUI_SCHEDULE_MCP_TIMEOUT_MS = 5_000
+const KUN_GUI_MCP_CONFIG_PATH_ENV = 'KUN_GUI_MCP_CONFIG_PATH'
 const DEFAULT_KUN_MODEL_PROFILES: Record<string, Record<string, unknown>> = {
   'deepseek-v4-pro': {
     contextWindowTokens: 1_000_000,
@@ -214,14 +221,22 @@ export async function startKunChild(settings: AppSettingsV1): Promise<void> {
     )
   }
   const dataDir = resolveKunDataDir(runtime)
+  if (!runtime.insecure && !runtime.runtimeToken.trim()) {
+    throw new Error(
+      'PengCodex Core authentication requires a runtime token. Reload settings to generate one or explicitly enable insecure mode for local development.'
+    )
+  }
+  const mcpLaunch = {
+    appPath: app.getAppPath(),
+    execPath: process.execPath,
+    isPackaged: app.isPackaged
+  }
   await syncGuiManagedKunConfig(dataDir, runtime, {
     settings,
     scheduleMcp: {
       settings,
       launch: {
-        appPath: app.getAppPath(),
-        execPath: process.execPath,
-        isPackaged: app.isPackaged
+        ...mcpLaunch
       }
     }
   })
@@ -248,7 +263,12 @@ export async function startKunChild(settings: AppSettingsV1): Promise<void> {
       ELECTRON_RUN_AS_NODE: '1',
       KUN_RUNTIME_TOKEN: runtime.runtimeToken,
       KUN_API_KEY: runtime.apiKey || process.env.KUN_API_KEY || process.env.DEEPSEEK_API_KEY || '',
-      DEEPSEEK_API_KEY: runtime.apiKey || process.env.DEEPSEEK_API_KEY || ''
+      DEEPSEEK_API_KEY: runtime.apiKey || process.env.DEEPSEEK_API_KEY || '',
+      KUN_WEB_API_KEY: runtime.webSearch.apiKey.trim(),
+      KUN_WEB_FETCH_API_KEY: runtime.webSearch.fetchApiKey.trim(),
+      KUN_STUDIO_IMAGE_API_KEY: studioApiKeyForSettings(settings, 'image'),
+      KUN_STUDIO_VIDEO_API_KEY: studioApiKeyForSettings(settings, 'video'),
+      [KUN_GUI_MCP_CONFIG_PATH_ENV]: resolveKunMcpJsonPath()
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false
@@ -337,6 +357,14 @@ export async function syncGuiManagedKunConfig(
   delete (webBase as { baseUrl?: unknown }).baseUrl
   delete (webBase as { fetchApiKey?: unknown }).fetchApiKey
   delete (webBase as { fetchReaderBaseUrl?: unknown }).fetchReaderBaseUrl
+  const existingMcpServers = objectValue(mcp.servers)
+  const guiManagedMcpServerIds = new Set([
+    ...Object.keys(importedMcpServers),
+    GUI_SCHEDULE_MCP_SERVER_NAME
+  ])
+  const persistentMcpServers = Object.fromEntries(
+    Object.entries(existingMcpServers).filter(([serverId]) => !guiManagedMcpServerIds.has(serverId))
+  )
   const webSearchEnabled = webSearch.searchEnabled || webSearch.provider !== 'fetch'
   const webSearchUsesDefaultSettings = webSearch.provider === 'fetch' &&
     webSearch.enabled === true &&
@@ -384,9 +412,7 @@ export async function syncGuiManagedKunConfig(
         provider: webSearchUsesDefaultProvider && existingWebProvider ? existingWebProvider : webSearch.provider,
         fetchProvider: webSearch.fetchProvider,
         fetchFallbackEnabled: webSearch.fetchFallbackEnabled,
-        ...(webSearch.fetchApiKey.trim() ? { fetchApiKey: webSearch.fetchApiKey } : {}),
         ...(webSearch.fetchReaderBaseUrl.trim() ? { fetchReaderBaseUrl: webSearch.fetchReaderBaseUrl } : {}),
-        ...(webSearch.apiKey.trim() ? { apiKey: webSearch.apiKey } : {}),
         ...(webSearch.baseUrl.trim() ? { baseUrl: webSearch.baseUrl } : {}),
         allowDomains: webSearch.allowDomains,
         denyDomains: webSearch.denyDomains
@@ -398,16 +424,7 @@ export async function syncGuiManagedKunConfig(
           ? { enabled: mcp.enabled === false ? false : true }
           : {}),
         servers: {
-          ...objectValue(mcp.servers),
-          ...importedMcpServers,
-          ...(options?.scheduleMcp
-          ? {
-              [GUI_SCHEDULE_MCP_SERVER_NAME]: buildGuiScheduleKunMcpServer(
-                options.scheduleMcp.settings,
-                options.scheduleMcp.launch
-              )
-            }
-          : {})
+          ...persistentMcpServers
         },
         search: {
           ...search,
@@ -428,9 +445,14 @@ export async function syncGuiManagedKunConfig(
     )
   }
   const nextText = `${JSON.stringify(next, null, 2)}\n`
-  if (existing && nextText === `${JSON.stringify(existing, null, 2)}\n`) return
+  if (existing && nextText === `${JSON.stringify(existing, null, 2)}\n`) {
+    await chmod(configPath, 0o600).catch(() => undefined)
+    return
+  }
   await mkdir(dirname(configPath), { recursive: true })
-  await writeFile(configPath, nextText, 'utf8')
+  // The GUI passes managed credentials to the child through its process
+  // environment. The persisted Core config contains only non-secret state.
+  await atomicWriteFile(configPath, nextText, { mode: 0o600 })
 }
 
 function buildGuiScheduleKunMcpServer(
@@ -490,76 +512,7 @@ function uniqueStrings(values: string[]): string[] {
 
 async function readGuiManagedMcpServers(path: string): Promise<Record<string, unknown>> {
   const parsed = await readJsonObjectIfExists(path)
-  if (!parsed) return {}
-
-  const rawServers = mcpServersFromGuiConfig(parsed)
-  const normalizedEntries = Object.entries(rawServers)
-    .map(([serverId, server]) => {
-      const normalized = normalizeGuiManagedMcpServer(server)
-      return normalized ? [serverId, normalized] as const : null
-    })
-    .filter((entry): entry is readonly [string, Record<string, unknown>] => entry !== null)
-
-  return Object.fromEntries(normalizedEntries)
-}
-
-function mcpServersFromGuiConfig(config: Record<string, unknown>): Record<string, unknown> {
-  const directServers = objectValue(config.servers)
-  if (Object.keys(directServers).length > 0) return directServers
-
-  const capabilities = objectValue(config.capabilities)
-  const mcp = objectValue(capabilities.mcp)
-  return objectValue(mcp.servers)
-}
-
-function normalizeGuiManagedMcpServer(server: unknown): Record<string, unknown> | null {
-  const raw = objectValue(server)
-  const command = scalarStringValue(raw.command)
-  const url = scalarStringValue(raw.url)
-  const args = stringArrayValue(raw.args)
-  const headers = stringRecordValue(raw.headers)
-  const env = stringRecordValue(raw.env)
-  const transport = normalizeMcpTransport(raw.transport, command, url)
-  if (!transport) return null
-
-  const trustedWorkspaceRoots = stringArrayValue(raw.trustedWorkspaceRoots)
-  const trustScope = normalizeMcpTrustScope(raw.trustScope, trustedWorkspaceRoots)
-  if (trustScope === 'workspace' && trustedWorkspaceRoots.length === 0) return null
-
-  const timeoutMs = positiveIntegerValue(raw.timeoutMs)
-  const parsed = McpServerConfig.safeParse({
-    enabled: raw.enabled === false || raw.disabled === true ? false : true,
-    transport,
-    ...(command ? { command } : {}),
-    ...(args.length > 0 ? { args } : {}),
-    ...(url ? { url } : {}),
-    ...(Object.keys(headers).length > 0 ? { headers } : {}),
-    ...(Object.keys(env).length > 0 ? { env } : {}),
-    trustScope,
-    ...(trustedWorkspaceRoots.length > 0 ? { trustedWorkspaceRoots } : {}),
-    ...(timeoutMs ? { timeoutMs } : {})
-  })
-
-  return parsed.success ? objectValue(parsed.data) : null
-}
-
-function normalizeMcpTransport(
-  value: unknown,
-  command: string | undefined,
-  url: string | undefined
-): 'stdio' | 'streamable-http' | 'sse' | null {
-  if (value === 'stdio' || value === 'streamable-http' || value === 'sse') return value
-  if (command) return 'stdio'
-  if (url) return 'streamable-http'
-  return null
-}
-
-function normalizeMcpTrustScope(
-  value: unknown,
-  trustedWorkspaceRoots: string[]
-): 'user' | 'workspace' {
-  if (value === 'user' || value === 'workspace') return value
-  return trustedWorkspaceRoots.length > 0 ? 'workspace' : 'user'
+  return parsed ? normalizeImportedMcpServers(parsed) : {}
 }
 
 function scalarStringValue(value: unknown): string | undefined {
@@ -568,20 +521,6 @@ function scalarStringValue(value: unknown): string | undefined {
     : typeof value === 'number' || typeof value === 'boolean'
       ? String(value)
       : undefined
-}
-
-function stringRecordValue(value: unknown): Record<string, string> {
-  const record = objectValue(value)
-  const next: Record<string, string> = {}
-  for (const [key, item] of Object.entries(record)) {
-    const normalized = scalarStringValue(item)
-    if (normalized !== undefined) next[key] = normalized
-  }
-  return next
-}
-
-function positiveIntegerValue(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined
 }
 
 function modelConfigForRuntime(existing: Record<string, unknown>): Record<string, unknown> {
@@ -703,27 +642,39 @@ function studioMediaConfigForSettings(
   existing: Record<string, unknown>
 ): Record<string, unknown> {
   const provider = getModelProviderProfile(settings, media.providerId)
-  const apiKey = media.apiKey.trim() || provider.apiKey.trim()
   const baseUrl = media.baseUrl.trim() || provider.baseUrl.trim()
+  const persistent = { ...existing }
+  delete (persistent as { apiKey?: unknown }).apiKey
   return {
-    ...existing,
+    ...persistent,
     enabled: media.enabled,
     providerId: media.providerId,
     providerKind: provider.providerKind,
-    apiKey,
     baseUrl,
     model: media.model
   }
+}
+
+function studioApiKeyForSettings(
+  settings: AppSettingsV1,
+  kind: 'image' | 'video'
+): string {
+  const media = getStudioSettings(settings)[kind]
+  const provider = getModelProviderProfile(settings, media.providerId)
+  return media.apiKey.trim() || provider.apiKey.trim()
 }
 
 async function readJsonObjectIfExists(path: string): Promise<Record<string, unknown> | null> {
   try {
     const text = await readFile(path, 'utf8')
     const parsed = JSON.parse(text) as unknown
-    return objectValue(parsed)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`Expected a JSON object in ${path}`)
+    }
+    return parsed as Record<string, unknown>
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
-    if (error instanceof SyntaxError) return null
+    if (error instanceof SyntaxError) throw new Error(`Invalid JSON in ${path}: ${error.message}`)
     throw error
   }
 }
@@ -731,30 +682,69 @@ async function readJsonObjectIfExists(path: string): Promise<Record<string, unkn
 type SafeParseSchema = {
   safeParse: (value: unknown) =>
     | { success: true; data: unknown }
-    | { success: false }
+    | {
+        success: false
+        error: {
+          issues: Array<{ code?: string; path?: PropertyKey[]; keys?: string[] }>
+        }
+      }
 }
 
 function parseKunConfigSection(
   schema: SafeParseSchema,
-  value: unknown
+  value: unknown,
+  section: string
 ): Record<string, unknown> {
-  const parsed = schema.safeParse(objectValue(value))
-  return parsed.success ? objectValue(parsed.data) : {}
+  const source = objectValue(value)
+  const parsed = schema.safeParse(source)
+  if (!parsed.success && parsed.error.issues.every((issue) => issue.code === 'unrecognized_keys')) {
+    const withoutUnknownKeys = removeUnrecognizedKeys(source, parsed.error.issues)
+    const retried = schema.safeParse(withoutUnknownKeys)
+    if (retried.success) return objectValue(retried.data)
+  }
+  if (!parsed.success) throw new Error(`Invalid existing PengCodex Core config section: ${section}`)
+  return objectValue(parsed.data)
+}
+
+function removeUnrecognizedKeys(
+  value: Record<string, unknown>,
+  issues: Array<{ path?: PropertyKey[]; keys?: string[] }>
+): Record<string, unknown> {
+  const cloned = structuredClone(value)
+  for (const issue of issues) {
+    let target: unknown = cloned
+    for (const segment of issue.path ?? []) {
+      if (!target || typeof target !== 'object') break
+      target = (target as Record<PropertyKey, unknown>)[segment]
+    }
+    if (!target || typeof target !== 'object' || Array.isArray(target)) continue
+    for (const key of issue.keys ?? []) delete (target as Record<string, unknown>)[key]
+  }
+  return cloned
 }
 
 function sanitizeKunCapabilitiesConfig(value: unknown): Record<string, unknown> {
   const raw = objectValue(value)
   const next: Record<string, unknown> = {}
-  if ('mcp' in raw) next.mcp = parseKunConfigSection(McpCapabilityConfig, raw.mcp)
-  if ('web' in raw) next.web = parseKunConfigSection(WebCapabilityConfig, raw.web)
-  if ('skills' in raw) next.skills = parseKunConfigSection(SkillsCapabilityConfig, raw.skills)
+  if ('mcp' in raw) next.mcp = parseKunConfigSection(McpCapabilityConfig, raw.mcp, 'capabilities.mcp')
+  if ('web' in raw) next.web = parseKunConfigSection(WebCapabilityConfig, raw.web, 'capabilities.web')
+  if ('skills' in raw) next.skills = parseKunConfigSection(SkillsCapabilityConfig, raw.skills, 'capabilities.skills')
   if ('subagents' in raw) {
-    next.subagents = parseKunConfigSection(SubagentsCapabilityConfig, raw.subagents)
+    next.subagents = parseKunConfigSection(SubagentsCapabilityConfig, raw.subagents, 'capabilities.subagents')
   }
   if ('attachments' in raw) {
-    next.attachments = parseKunConfigSection(AttachmentsCapabilityConfig, raw.attachments)
+    next.attachments = parseKunConfigSection(AttachmentsCapabilityConfig, raw.attachments, 'capabilities.attachments')
   }
-  if ('memory' in raw) next.memory = parseKunConfigSection(MemoryCapabilityConfig, raw.memory)
+  if ('memory' in raw) next.memory = parseKunConfigSection(MemoryCapabilityConfig, raw.memory, 'capabilities.memory')
+  if ('lsp' in raw) next.lsp = parseKunConfigSection(LspCapabilityConfig, raw.lsp, 'capabilities.lsp')
+  if ('browser' in raw) next.browser = parseKunConfigSection(BrowserCapabilityConfig, raw.browser, 'capabilities.browser')
+  if ('computerUse' in raw) {
+    next.computerUse = parseKunConfigSection(ComputerUseCapabilityConfig, raw.computerUse, 'capabilities.computerUse')
+  }
+  if ('graph' in raw) next.graph = parseKunConfigSection(GraphCapabilityConfig, raw.graph, 'capabilities.graph')
+  if ('extensions' in raw) {
+    next.extensions = parseKunConfigSection(ExtensionsCapabilityConfig, raw.extensions, 'capabilities.extensions')
+  }
   return next
 }
 
@@ -763,14 +753,15 @@ function sanitizeKunConfigSections(
 ): Record<string, unknown> | null {
   if (!existing) return null
   return {
-    serve: parseKunConfigSection(KunServeConfigSchema, existing.serve),
-    models: parseKunConfigSection(ModelConfigSchema, existing.models),
+    serve: parseKunConfigSection(KunServeConfigSchema, existing.serve, 'serve'),
+    models: parseKunConfigSection(ModelConfigSchema, existing.models, 'models'),
     contextCompaction: parseKunConfigSection(
       ContextCompactionConfigSchema,
-      existing.contextCompaction
+      existing.contextCompaction,
+      'contextCompaction'
     ),
-    runtime: parseKunConfigSection(RuntimeTuningConfigSchema, existing.runtime),
-    studio: parseKunConfigSection(StudioRuntimeConfigSchema, existing.studio),
+    runtime: parseKunConfigSection(RuntimeTuningConfigSchema, existing.runtime, 'runtime'),
+    studio: parseKunConfigSection(StudioRuntimeConfigSchema, existing.studio, 'studio'),
     capabilities: sanitizeKunCapabilitiesConfig(existing.capabilities)
   }
 }

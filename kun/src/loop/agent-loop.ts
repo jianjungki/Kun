@@ -914,7 +914,14 @@ export class AgentLoop {
         )
         return 'failed'
       }
-      if (stopReason === 'stop' && activeGoalInstruction) return 'continue'
+      // An active goal normally keeps the model loop alive after a textual
+      // progress update so the model can continue working in the same turn.
+      // If the model stops without producing text or a tool call, there is no
+      // progress to justify another request; continuing here would spin
+      // forever when a provider returns an empty stop response.
+      if (stopReason === 'stop' && activeGoalInstruction && textAccumulator.value.trim()) {
+        return 'continue'
+      }
       return 'stop'
     }
     const dispatched = await this.dispatchToolCalls({
@@ -1114,6 +1121,14 @@ export class AgentLoop {
             } as Partial<TurnItem>)
             if (existing) return
             await this.opts.turns.applyItem(input.threadId, item)
+            // The first streamed update creates the live result projection.
+            // Emit an update as well so consumers that subscribe specifically
+            // to progress events receive the same payload immediately.
+            await this.opts.turns.updateItem(input.threadId, item.id, {
+              output: item.kind === 'tool_result' ? item.output : undefined,
+              isError: item.kind === 'tool_result' ? item.isError : undefined,
+              status: 'running'
+            } as Partial<TurnItem>)
           })
         } catch (error) {
           if (input.context.abortSignal.aborted || !this.isRecoverableToolDispatchError(error)) {
@@ -1880,6 +1895,7 @@ function normalizeApprovalPolicy(
   value: string | undefined
 ): ToolHostContext['approvalPolicy'] {
   switch (value) {
+    case 'on-request':
     case 'never':
     case 'auto':
     case 'suggest':

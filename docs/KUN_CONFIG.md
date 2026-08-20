@@ -42,6 +42,12 @@ GUI 启动 PengCodex Core 时会按下面的顺序合并配置。
 4. CLI 参数和环境变量会覆盖 `serve` 里的基础启动字段，例如 `--model`、`--port`、`KUN_MODEL`、`KUN_PORT`。
 5. AgentLoop、review loop 和子 Agent 都从同一份模型配置加载模型能力与上下文压缩阈值。
 
+GUI 首次加载设置时会自动生成 runtime token，并通过系统安全存储加密保存；
+GUI 管理的模型、Web 和 Studio 密钥只通过子进程启动环境传入，随后由 Core
+从进程环境中清除，不会复制到 `<dataDir>/config.json`。单独运行
+`pengcodex serve` 且未提供 token 时，会在 `<dataDir>/runtime-token` 生成并复用
+一个仅当前用户可读的 token。只有显式 `--insecure` 才会关闭 `/v1/*` 鉴权。
+
 ## 推荐的 config.json 结构
 
 ```json

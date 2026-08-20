@@ -13,7 +13,12 @@ import {
 import { withFileMutationQueue } from './file-mutation-queue.js'
 import type { EditLocalToolOptions, WriteLocalToolOptions } from './builtin-tool-types.js'
 import { defaultEditLocalToolOperations, defaultWriteLocalToolOperations } from './builtin-tool-operations.js'
-import { parseEditInstructions, resolveWorkspacePath, withToolBoundary } from './builtin-tool-utils.js'
+import {
+  assertWorkspacePathBoundary,
+  parseEditInstructions,
+  resolveWorkspacePath,
+  withToolBoundary
+} from './builtin-tool-utils.js'
 
 export function createWriteLocalTool(_options: WriteLocalToolOptions = {}): LocalTool {
   const mkdirOp = _options.operations?.mkdir ?? defaultWriteLocalToolOperations.mkdir!
@@ -40,6 +45,9 @@ export function createWriteLocalTool(_options: WriteLocalToolOptions = {}): Loca
       }
       const { absolutePath, relativePath } = resolveWorkspacePath(rawPath, context)
       return withFileMutationQueue(absolutePath, async () => {
+        if (!_options.operations) {
+          await assertWorkspacePathBoundary(context.workspace, absolutePath, 'write')
+        }
         await mkdirOp(dirname(absolutePath))
         await writeFileOp(absolutePath, content)
         return {
@@ -95,12 +103,18 @@ export function createEditLocalTool(_options: EditLocalToolOptions = {}): LocalT
       }
       const { absolutePath, relativePath } = resolveWorkspacePath(rawPath, context)
       return withFileMutationQueue(absolutePath, async () => {
+        if (!_options.operations) {
+          await assertWorkspacePathBoundary(context.workspace, absolutePath, 'read')
+        }
         const rawSource = await readFileOp(absolutePath)
         const { bom, text: source } = stripBom(rawSource)
         const lineEnding = detectLineEnding(source)
         const normalizedSource = normalizeToLF(source)
         const { baseContent, newContent } = applyEditsToNormalizedContent(normalizedSource, edits, relativePath)
         const next = bom + restoreLineEndings(newContent, lineEnding)
+        if (!_options.operations) {
+          await assertWorkspacePathBoundary(context.workspace, absolutePath, 'write')
+        }
         await writeFileOp(absolutePath, next)
         const diff = generateDisplayDiff(baseContent, newContent)
         const patch = generateUnifiedPatch(relativePath, baseContent, newContent)

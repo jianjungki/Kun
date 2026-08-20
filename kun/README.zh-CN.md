@@ -2,7 +2,7 @@
 
 PengCodex Core 是 PengCodex 的本地 HTTP/SSE 代理运行时。它为 GUI 提供稳定、类型化且 GUI 友好的代理循环合约：
 
-- `kun serve` 会启动一个本地 HTTP 服务器，并暴露 `/v1/*` 路由。
+- `pengcodex serve` 会启动一个本地 HTTP 服务器，并暴露 `/v1/*` 路由。
 - 线程、回合（turn）、事件、审批和用量都会以追加写入的 JSONL 日志持久化，并配合原子化索引更新。
 - Agent 循环采用 cache-first 设计：不可变的 prompt 前缀、边界受限的 TTL/LRU 缓存、inflight 跟踪，以及显式上下文压缩。
 
@@ -46,7 +46,7 @@ kun/
 
 ## CLI
 
-`kun serve` 支持以下参数：
+`pengcodex serve` 支持以下参数：
 
 | 参数 | 说明 | 默认值 |
 | --- | --- | --- |
@@ -54,7 +54,7 @@ kun/
 | `--host` | 监听地址 | `127.0.0.1` |
 | `--port` | HTTP 端口 | `8899` |
 | `--data-dir` | 线程、事件和用量数据根目录 | required |
-| `--runtime-token` | `/v1/*` 鉴权 token | empty |
+| `--runtime-token` | `/v1/*` 鉴权 token | 自动生成到 `{data-dir}/runtime-token` |
 | `--api-key` | DeepSeek 兼容 API key | empty |
 | `--base-url` | DeepSeek 兼容模型 API 的基础 URL | `https://api.deepseek.com/beta` |
 | `--model` | 默认模型 ID | `deepseek-v4-pro` |
@@ -65,7 +65,7 @@ kun/
 示例：
 
 ```bash
-kun serve \
+pengcodex serve \
   --config ~/.pengcodex/runtime/config.json \
   --host 127.0.0.1 \
   --port 8899 \
@@ -75,19 +75,26 @@ kun serve \
   --model deepseek-v4-pro
 ```
 
+当 `--runtime-token`、`KUN_RUNTIME_TOKEN` 和 `serve.runtimeToken` 都为空时，
+`pengcodex serve` 会生成并复用 `{data-dir}/runtime-token`，文件权限仅限当前用户。
+启动就绪 JSON 只返回 `runtimeTokenPath`，不会输出 token 内容。只有显式使用
+`--insecure` 才会关闭鉴权。
+
 PengCodex Core 也可以在无 GUI 的情况下独立运行：
 
 ```bash
-kun run --data-dir ~/.pengcodex/runtime --workspace "$PWD" "summarize this repo"
-kun chat --data-dir ~/.pengcodex/runtime --workspace "$PWD"
-kun exec --data-dir ~/.pengcodex/runtime --workspace "$PWD" --list-tools
-kun exec --data-dir ~/.pengcodex/runtime --workspace "$PWD" read --args '{"path":"README.md"}'
+pengcodex run --data-dir ~/.pengcodex/runtime --workspace "$PWD" "summarize this repo"
+pengcodex chat --data-dir ~/.pengcodex/runtime --workspace "$PWD"
+pengcodex exec --data-dir ~/.pengcodex/runtime --workspace "$PWD" --list-tools
+pengcodex exec --data-dir ~/.pengcodex/runtime --workspace "$PWD" read --args '{"path":"README.md"}'
 ```
 
-- `kun run` 会创建一个线程，执行一个回合并流式输出助手文本后退出。
-- `kun chat` 启动行式 REPL。使用 `/exit`、`/quit` 或空行退出。
-- `kun exec --list-tools` 打印当前配置 / 工作区下生效的动态工具列表。
-- `kun exec <tool> --args <json>` 直接调用单个工具。`run` 或 `exec` 上可配合 `--json` 获取机器可读输出。
+- `pengcodex run` 会创建一个线程，执行一个回合并流式输出助手文本后退出。
+- `pengcodex chat` 启动行式 REPL。使用 `/exit`、`/quit` 或空行退出。
+- `pengcodex exec --list-tools` 打印当前配置 / 工作区下生效的动态工具列表。
+- `pengcodex exec <tool> --args <json>` 直接调用单个工具。`run` 或 `exec` 上可配合 `--json` 获取机器可读输出。
+- `pengcodex runtime status --data-dir <dir>` 检查本机运行时发现状态。
+- `pengcodex extension list|validate|install|remove` 管理声明式命令扩展；配合 `--json` 可获得稳定的脚本输出。
 
 ## 环境变量
 
@@ -223,6 +230,40 @@ PengCodex Core 使用 JSON 配置文件管理运行时行为，避免重建后�
       "enabled": false,
       "scopes": ["user", "workspace", "project"],
       "maxInjectedRecords": 8
+    },
+    "lsp": {
+      "enabled": false,
+      "servers": {
+        "typescript": {
+          "command": "typescript-language-server",
+          "args": ["--stdio"],
+          "extensions": ["ts", "tsx", "js", "jsx"]
+        }
+      }
+    },
+    "browser": {
+      "enabled": false,
+      "headless": true,
+      "allowedDomains": [],
+      "maxActionsPerTurn": 40
+    },
+    "computerUse": {
+      "enabled": false,
+      "backend": "nutjs"
+    },
+    "graph": {
+      "enabled": false,
+      "maxParallel": 2,
+      "maxNodes": 12,
+      "failFast": false
+    },
+    "extensions": {
+      "enabled": false,
+      "roots": [],
+      "trustedWorkspaceRoots": ["/path/to/workspace"],
+      "allowExecutables": ["node"],
+      "envAllowlist": [],
+      "maxOutputBytes": 1048576
     }
   }
 }
@@ -244,6 +285,34 @@ PengCodex Core 默认使用混合存储：`threads/{threadId}/messages.jsonl` �
 - `capabilities.attachments` 将图片二进制从线程日志剥离，允许回合记录引用 `attachmentIds`。视觉模型直接接收图片部分，纯文本模型走受限文本 fallback。
 - `capabilities.memory` 在数据目录下持久化跨会话记忆，按作用域检索并注入上下文；也会公开 `memory_create`、`memory_update`、`memory_delete` 工具。
 - `capabilities.subagents` 通过 `maxParallel` 与 `maxChildRuns` 限制委派任务并发。
+- `capabilities.lsp` 通过 stdio Language Server 提供受工作区边界约束的 `lsp_query`。
+- `capabilities.browser` 通过隔离的 CDP 页面提供打开、快照、点击、输入、截图和关闭操作，并受域名与单回合动作预算限制。
+- `capabilities.computerUse` 通过可选的 Apache-2.0 原生后端提供宿主截图、鼠标和键盘操作；后端未随包可用时会明确标记为 unavailable。
+- `capabilities.graph` 基于现有子代理运行时执行经过依赖校验的 DAG；必须同时开启 Graph 与 subagents。
+- `capabilities.extensions` 只加载声明式 `pengcodex-extension.json`，命令、工作区、环境变量、超时和输出大小均需通过显式白名单。
+
+以上五项默认全部关闭。Browser / Computer Use 动作沿用现有审批策略，Graph 不会递归暴露给子代理。
+
+Extension 清单声明外部命令，不加载任意 JavaScript 模块：
+
+```json
+{
+  "manifestVersion": 1,
+  "id": "example.tools",
+  "name": "Example Tools",
+  "version": "1.0.0",
+  "tools": [{
+    "name": "inspect",
+    "description": "Inspect structured workspace data",
+    "executable": "node",
+    "args": ["tool.mjs"],
+    "inputSchema": { "type": "object", "properties": {} },
+    "cwd": "extension",
+    "output": "json",
+    "timeoutMs": 30000
+  }]
+}
+```
 
 在渲染端使用 `GET /v1/runtime/info` 获取运行时能力清单，使用
 `GET /v1/runtime/tools` 查看 provider 诊断。GUI 设置页会读取这两条接口。
@@ -339,7 +408,7 @@ SSE 使用 `id: <seq>`、`event: <kind>` 与 `data:`。新连接可通过 `since
 - Web 工具不可用：检查 `capabilities.web.enabled`，并确保 `fetchEnabled` / `searchEnabled` 至少一项为 true。内置 provider 负责抓取 HTTP(S) 页面，搜索可能因未实现 provider 而不可用。
 - 图片上传失败：检查 `maxImageBytes`、`maxImageDimension`、`allowedMimeTypes` 与文本 fallback 的大小限制。纯文本模型需要足够小的 base64 文本 fallback。
 - 记忆未注入：确认 `capabilities.memory` 为 true，`/v1/memory/diagnostics` 显示正常，作用域与工作区匹配且未被禁用；再看 `lastInjectedIds`。
-- `kun run`/`kun chat`/`kun exec` 报错：核对 `--config`、`--data-dir`、`--api-key`、`--base-url`、`--runtime-token` 一致；先用 `kun exec --list-tools --json` 检查工具注册表。
+- `pengcodex run`/`pengcodex chat`/`pengcodex exec` 报错：核对 `--config`、`--data-dir`、`--api-key`、`--base-url`、`--runtime-token` 一致；先用 `pengcodex exec --list-tools --json` 检查工具注册表。
 - 功能显示为 disabled：通常表示配置标志为 false；显示为 unavailable 通常表示标志为 true，但 provider/存储/模型未就绪或初始化失败。
 
 ## GUI 集成

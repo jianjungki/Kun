@@ -15,6 +15,7 @@ describe('JsonSettingsStore', () => {
 
     expect(loaded.guiUpdate.channel).toBe(DEFAULT_GUI_UPDATE_CHANNEL)
     expect(loaded.agents.kun.approvalPolicy).toBe(DEFAULT_APPROVAL_POLICY)
+    expect(loaded.agents.kun.runtimeToken).toMatch(/^[A-Za-z0-9_-]{40,}$/)
     expect(loaded.appBehavior).toEqual({
       openAtLogin: false,
       startMinimized: false,
@@ -469,6 +470,64 @@ describe('JsonSettingsStore', () => {
       // No .tmp leftover from the atomic write.
       const entries = await readdir(userDataDir)
       expect(entries.filter((entry) => entry.includes('.tmp'))).toEqual([])
+    } finally {
+      await rm(userDataDir, { recursive: true, force: true })
+    }
+  })
+
+  it('persists a generated runtime token for existing secure settings', async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), 'pengcodex-settings-token-'))
+    const settingsPath = join(userDataDir, 'pengcodex-settings.json')
+    await writeFile(settingsPath, JSON.stringify({
+      version: 1,
+      agents: {
+        kun: {
+          runtimeToken: '',
+          insecure: false
+        }
+      }
+    }), 'utf8')
+
+    const first = await new JsonSettingsStore(userDataDir).load()
+    const second = await new JsonSettingsStore(userDataDir).load()
+
+    expect(first.agents.kun.runtimeToken).toMatch(/^[A-Za-z0-9_-]{40,}$/)
+    expect(second.agents.kun.runtimeToken).toBe(first.agents.kun.runtimeToken)
+    expect(await readFile(settingsPath, 'utf8')).toContain(first.agents.kun.runtimeToken)
+  })
+
+  it('encrypts credential fields on disk and decrypts them when reloaded', async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), 'pengcodex-settings-secret-'))
+    const codec = {
+      encrypt: (value: string) => Buffer.from(`encrypted:${value}`, 'utf8').toString('base64'),
+      decrypt: (value: string) => Buffer.from(value, 'base64').toString('utf8').replace(/^encrypted:/, '')
+    }
+
+    try {
+      const first = new JsonSettingsStore(userDataDir, codec)
+      const settings = await first.load()
+      settings.provider.apiKey = 'provider-secret'
+      settings.agents.kun.runtimeToken = 'runtime-secret'
+      settings.claw.im.secret = 'claw-secret'
+      settings.schedule.internal.secret = 'schedule-secret'
+      await first.save(settings)
+
+      const settingsPath = join(userDataDir, 'pengcodex-settings.json')
+      const raw = await readFile(settingsPath, 'utf8')
+      expect(raw).toContain('pengcodex-safe:v1:')
+      expect(raw).not.toContain('provider-secret')
+      expect(raw).not.toContain('runtime-secret')
+      expect(raw).not.toContain('claw-secret')
+      expect(raw).not.toContain('schedule-secret')
+      if (process.platform !== 'win32') {
+        expect((await stat(settingsPath)).mode & 0o777).toBe(0o600)
+      }
+
+      const reloaded = await new JsonSettingsStore(userDataDir, codec).load()
+      expect(reloaded.provider.apiKey).toBe('provider-secret')
+      expect(reloaded.agents.kun.runtimeToken).toBe('runtime-secret')
+      expect(reloaded.claw.im.secret).toBe('claw-secret')
+      expect(reloaded.schedule.internal.secret).toBe('schedule-secret')
     } finally {
       await rm(userDataDir, { recursive: true, force: true })
     }

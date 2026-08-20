@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
+import type { Socket } from 'node:net'
 import type { Router } from './router.js'
 import { dispatchRequest } from './http-server.js'
 
@@ -18,6 +19,11 @@ export async function startNodeHttpServer(input: {
   const server = createServer((request, response) => {
     void handleNodeRequest(input.router, request, response)
   })
+  const sockets = new Set<Socket>()
+  server.on('connection', (socket) => {
+    sockets.add(socket)
+    socket.once('close', () => sockets.delete(socket))
+  })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
     server.listen(input.port, input.host, () => {
@@ -27,14 +33,26 @@ export async function startNodeHttpServer(input: {
   })
   const address = server.address()
   const port = typeof address === 'object' && address ? address.port : input.port
+  let closing: Promise<void> | undefined
   return {
     server,
     host: input.host,
     port,
-    close: () =>
-      new Promise<void>((resolve, reject) => {
-        server.close((error) => (error ? reject(error) : resolve()))
+    close: () => {
+      closing ??= new Promise<void>((resolve, reject) => {
+        const forceTimer = setTimeout(() => {
+          for (const socket of sockets) socket.destroy()
+        }, 2_000)
+        forceTimer.unref()
+        server.close((error) => {
+          clearTimeout(forceTimer)
+          if (error) reject(error)
+          else resolve()
+        })
+        server.closeIdleConnections?.()
       })
+      return closing
+    }
   }
 }
 

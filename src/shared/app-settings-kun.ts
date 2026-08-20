@@ -516,7 +516,7 @@ export function applyKunRuntimePatch(
 }
 
 export function isKunRuntimeInsecure(runtime: Pick<KunRuntimeSettingsV1, 'insecure' | 'runtimeToken'>): boolean {
-  return runtime.insecure || !runtime.runtimeToken.trim()
+  return runtime.insecure
 }
 
 export function getActiveAgentApiKey(settings: AppSettingsV1): string {

@@ -49,4 +49,10 @@ export class InMemoryApprovalGate implements ApprovalGate {
   resolve(approvalId: string, decision: 'allow' | 'deny', reason?: string): boolean {
     return this.decide(approvalId, decision, reason)
   }
+
+  reset(reason = 'approval gate reset'): void {
+    for (const resolver of this.resolvers.values()) resolver.reject(new Error(reason))
+    this.approvals.clear()
+    this.resolvers.clear()
+  }
 }

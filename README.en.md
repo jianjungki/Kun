@@ -34,6 +34,7 @@ The project keeps the same local-first posture, inspectable changes, high token 
 - **Connect phone**: use Feishu / Lark / WeChat and webhook flows so a background agent can handle messages and mobile workflows.
 - **Scheduled tasks**: run one-time, daily, interval, or manual tasks with their own workspaces and threads.
 - **Skills / MCP / external tools**: manage skills, external tool servers, and progressive tool selection from the UI.
+- **Developer-tool orchestration**: opt into Browser Use, Computer Use, LSP, child-agent DAGs, and declarative Extensions. These privileged capabilities remain disabled by default and keep approval, workspace, and allowlist boundaries.
 - **High token ROI**: stabilize prompt prefixes, track model cache hits, compact tool results and history when useful, and keep context focused on requirements, code, decisions, and results.
 - **Local-first storage**: settings, sessions, logs, runtime config, and writing spaces stay on your machine by default; model calls use your own API key.
 
@@ -90,6 +91,16 @@ Download the latest build from [GitHub Releases](https://github.com/XingYu-Zhong
 | Linux | `.AppImage`, x64 |
 
 On first launch, configure a model API key. DeepSeek is the default provider; compatible OpenAI/DeepSeek services can be configured with custom Base URL, model, and endpoint format values.
+
+Packaged installs expose a `pengcodex` command. Windows updates the user `PATH` during install/uninstall; macOS and Ubuntu create a user launcher and update the relevant shell profile on first launch. Open a new terminal and run:
+
+```bash
+pengcodex --help
+pengcodex runtime status --data-dir ~/.pengcodex/runtime
+pengcodex extension list --data-dir ~/.pengcodex/runtime
+```
+
+The legacy `kun` command remains as a compatibility alias. The CLI uses the runtime bundled with the app, so users do not need a separate Node.js installation.
 
 ### Run From Source
 

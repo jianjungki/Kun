@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -27,6 +27,7 @@ import {
   modelContextProfilesFromConfig
 } from '../src/loop/model-context-profile.js'
 import {
+  clearRuntimeSecretEnvironment,
   parseServeOptionsSafe,
   parseServeOptions,
   validateServeOptions,
@@ -442,6 +443,82 @@ describe('cli', () => {
     }
   })
 
+  it('overlays GUI-managed secrets from the child environment without requiring them in config', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'kun-config-secret-overlay-'))
+    try {
+      const configPath = join(dir, 'kun.config.json')
+      const mcpConfigPath = join(dir, 'mcp.json')
+      await writeFile(configPath, JSON.stringify({
+        serve: { dataDir: join(dir, 'data') },
+        studio: {
+          enabled: true,
+          image: { enabled: true, providerKind: 'openai', model: 'gpt-image-1' },
+          video: { enabled: true, providerKind: 'google', model: 'video-1' }
+        },
+        capabilities: {
+          web: {
+            enabled: true,
+            fetchEnabled: true,
+            searchEnabled: true,
+            provider: 'brave-search'
+          },
+          mcp: { enabled: true }
+        }
+      }), 'utf8')
+      await writeFile(mcpConfigPath, JSON.stringify({
+        servers: {
+          docs: {
+            enabled: true,
+            transport: 'streamable-http',
+            url: 'https://mcp.example.test',
+            headers: { Authorization: 'Bearer mcp-secret' },
+            trustScope: 'user'
+          }
+        }
+      }), 'utf8')
+
+      const parsed = parseServeOptions(['--config', configPath], {
+        KUN_WEB_API_KEY: 'web-secret',
+        KUN_WEB_FETCH_API_KEY: 'fetch-secret',
+        KUN_STUDIO_IMAGE_API_KEY: 'image-secret',
+        KUN_STUDIO_VIDEO_API_KEY: 'video-secret',
+        KUN_GUI_MCP_CONFIG_PATH: mcpConfigPath
+      })
+
+      expect(parsed.capabilities.web.apiKey).toBe('web-secret')
+      expect(parsed.capabilities.web.fetchApiKey).toBe('fetch-secret')
+      expect(parsed.studio?.image.apiKey).toBe('image-secret')
+      expect(parsed.studio?.video.apiKey).toBe('video-secret')
+      expect(parsed.capabilities.mcp.servers.docs.headers.Authorization).toBe('Bearer mcp-secret')
+      const onDisk = await readFile(configPath, 'utf8')
+      expect(onDisk).not.toContain('web-secret')
+      expect(onDisk).not.toContain('fetch-secret')
+      expect(onDisk).not.toContain('image-secret')
+      expect(onDisk).not.toContain('video-secret')
+      expect(onDisk).not.toContain('mcp-secret')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('clears parsed credentials before runtime tools inherit the process environment', () => {
+    const env: Record<string, string | undefined> = {
+      KUN_RUNTIME_TOKEN: 'runtime-secret',
+      KUN_API_KEY: 'model-secret',
+      DEEPSEEK_API_KEY: 'legacy-secret',
+      KUN_WEB_API_KEY: 'web-secret',
+      KUN_WEB_FETCH_API_KEY: 'fetch-secret',
+      KUN_STUDIO_IMAGE_API_KEY: 'image-secret',
+      KUN_STUDIO_VIDEO_API_KEY: 'video-secret',
+      KUN_GUI_MCP_CONFIG_PATH: '/tmp/mcp.json',
+      PATH: '/bin'
+    }
+
+    clearRuntimeSecretEnvironment(env)
+
+    expect(env).toEqual({ PATH: '/bin' })
+  })
+
   it('fails loudly for unsupported context compaction scorer overrides', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'kun-config-'))
     try {
@@ -562,7 +639,7 @@ describe('cli', () => {
     const manifest = RuntimeCapabilityManifest.parse(buildRuntimeCapabilityManifest({
       model: modelCapabilitiesForModel('deepseek-chat')
     }))
-    expect(manifest.contractVersion).toBe(1)
+    expect(manifest.contractVersion).toBe(2)
     expect(manifest.model.inputModalities).toContain('text')
     expect(manifest.mcp.available).toBe(false)
     expect(manifest.mcp.reason).toMatch(/disabled/)
@@ -571,6 +648,11 @@ describe('cli', () => {
     expect(manifest.attachments.textFallbackMaxBase64Bytes).toBe(512 * 1024)
     expect(manifest.attachments.textFallbackMaxImageDimension).toBe(1280)
     expect(manifest.attachments.textFallbackPreferredMimeType).toBe('image/webp')
+    expect(manifest.lsp.status).toBe('disabled')
+    expect(manifest.browser.status).toBe('disabled')
+    expect(manifest.computerUse.status).toBe('disabled')
+    expect(manifest.graph.status).toBe('disabled')
+    expect(manifest.extensions.status).toBe('disabled')
 
     const enabledButMissingProvider = buildRuntimeCapabilityManifest({
       model: modelCapabilitiesForModel('deepseek-chat'),
@@ -640,7 +722,7 @@ describe('cli', () => {
   })
 
   it('exposes a usage string', () => {
-    expect(SERVE_USAGE).toContain('kun serve')
+    expect(SERVE_USAGE).toContain('pengcodex serve')
   })
 
   it('surfaces zod issues for invalid configurations', () => {

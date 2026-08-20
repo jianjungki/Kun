@@ -365,10 +365,10 @@ function waitForSessionExitOrDelay(session: BashSession, ms: number): Promise<bo
   })
 }
 
-function stopSession(session: BashSession): void {
-  if (session.status !== 'running') return
+function stopSession(session: BashSession): Promise<void> {
+  if (session.status !== 'running') return Promise.resolve()
   session.stopRequested = true
-  terminateSpawnTree(session.child)
+  return terminateSpawnTree(session.child)
 }
 
 function normalizeYieldSeconds(value: unknown): number {
@@ -454,7 +454,9 @@ async function startBashSession(
     settleSession(session, session.stopRequested ? 'stopped' : 'completed', code)
   })
 
-  const onAbort = () => stopSession(session)
+  const onAbort = () => {
+    void stopSession(session)
+  }
   input.signal.addEventListener('abort', onAbort, { once: true })
   const timeoutMs = input.timeoutSeconds * 1000
   const yieldMs = Math.min(input.yieldSeconds * 1000, timeoutMs)
@@ -464,12 +466,12 @@ async function startBashSession(
 
   if (input.signal.aborted) {
     liveUpdates = false
-    stopSession(session)
+    void stopSession(session)
     throw new Error('command aborted')
   }
   if (!exited && timeoutMs <= yieldMs) {
     liveUpdates = false
-    stopSession(session)
+    void stopSession(session)
     await waitForSessionExitOrDelay(session, STOP_GRACE_MS)
     throw new Error(`command timed out after ${input.timeoutSeconds} seconds`)
   }
@@ -542,7 +544,7 @@ export function createBashLocalTool(options: BashLocalToolOptions = {}): LocalTo
           return { output: payload, isError: payload.status === 'failed' }
         }
         if (action === 'stop') {
-          stopSession(session)
+          await stopSession(session)
           await waitForSessionExitOrDelay(session, STOP_GRACE_MS)
           const payload = await sessionPayload(session, { stopSent: true })
           return { output: payload, isError: session.status === 'running' || session.status === 'failed' }

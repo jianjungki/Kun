@@ -1,10 +1,15 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerSaveBlocker, Tray } from 'electron'
+// MUST be the very first import: installs the Module._load shim that redirects
+// `require('punycode')` to the userland package before html-to-docx loads it.
+import './punycode-shim'
+
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerSaveBlocker, safeStorage, Tray } from 'electron'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   JsonSettingsStore,
-  devServerHintUrl
+  devServerHintUrl,
+  type SettingsSecretCodec
 } from './settings-store'
 import deepseekLogoPng from '../asset/img/deepseek.png?url'
 import deepseekTrayPng from '../asset/img/deepseek_gui_tray.png?url'
@@ -20,6 +25,7 @@ import {
   mergeClawSettings,
   mergeModelProviderSettings,
   mergeScheduleSettings,
+  mergeStudioSettings,
   mergeWriteSettings,
   normalizeAppSettings,
   normalizeAppBehaviorSettings,
@@ -67,6 +73,14 @@ import {
 } from './weixin-bridge-runtime'
 import { webhookUrl } from './claw-runtime-helpers'
 import { isKunHealthResponseBody } from './kun-health'
+import {
+  ensurePengCodexCliOnPath,
+  PENGCODEX_CLI_FORWARD_ARG,
+  PENGCODEX_CLI_INSTALL_ARG,
+  PENGCODEX_CLI_UNINSTALL_ARG,
+  pengCodexCliExecutablePath,
+  removePengCodexCliFromPath
+} from './pengcodex-cli-path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APP_USER_MODEL_ID = 'com.xingyuzhong.pengcodex'
@@ -102,6 +116,13 @@ function syncWeixinBridgeRuntime(settings: AppSettingsV1): void {
 
 const runningClawScheduleMcpServer =
   process.argv.includes('--gui-schedule-mcp-server') || process.argv.includes('--claw-schedule-mcp-server')
+const pengCodexCliForwardIndex = process.argv.indexOf(PENGCODEX_CLI_FORWARD_ARG)
+const runningPengCodexCli = pengCodexCliForwardIndex >= 0
+const pengCodexCliSetupMode = process.argv.includes(PENGCODEX_CLI_INSTALL_ARG)
+  ? 'install'
+  : process.argv.includes(PENGCODEX_CLI_UNINSTALL_ARG)
+    ? 'uninstall'
+    : null
 
 function resolveLogDirectory(): string {
   return join(app.getPath('userData'), 'logs')
@@ -145,8 +166,8 @@ function runtimeJsonError(code: string, message: string): Error {
 
 traceStartup('main module evaluated')
 
-if (runningClawScheduleMcpServer && process.platform === 'darwin') {
-  app.dock.hide()
+if ((runningClawScheduleMcpServer || runningPengCodexCli || pengCodexCliSetupMode) && process.platform === 'darwin') {
+  app.dock?.hide()
 }
 
 // 在最早的阶段把 app 名称、AppUserModelId 都设好。
@@ -236,7 +257,7 @@ function installDevPreviewWebviewGuards(): void {
 const appIcon = createAppIcon(deepseekLogoPng)
 const trayIcon = createAppIcon(deepseekTrayPng)
 traceStartup('app icon loaded', { source: deepseekLogoPng.startsWith('data:') ? 'data-url' : 'path' })
-const gotSingleInstanceLock = runningClawScheduleMcpServer || app.requestSingleInstanceLock()
+const gotSingleInstanceLock = runningClawScheduleMcpServer || runningPengCodexCli || Boolean(pengCodexCliSetupMode) || app.requestSingleInstanceLock()
 traceStartup('single instance lock checked', {
   gotSingleInstanceLock,
   skippedForClawScheduleMcpServer: runningClawScheduleMcpServer
@@ -580,7 +601,7 @@ async function ensureKunRuntime(settings: AppSettingsV1): Promise<void> {
   if (!runtime.autoStart) {
     throw runtimeJsonError(
       'runtime_offline',
-      'PengCodex Core is offline. Enable automatic startup in Settings, or start `kun serve` manually.'
+      'PengCodex Core is offline. Enable automatic startup in Settings, or start `pengcodex serve` manually.'
     )
   }
 
@@ -805,15 +826,29 @@ app.whenReady().then(async () => {
   traceStartup('app.whenReady:start')
   if (!gotSingleInstanceLock) return
 
+  if (runningPengCodexCli) {
+    await runBundledPengCodexCli(process.argv.slice(pengCodexCliForwardIndex + 1))
+    return
+  }
+  if (pengCodexCliSetupMode) {
+    await runPengCodexCliPathSetup(pengCodexCliSetupMode)
+    return
+  }
+  if (app.isPackaged && process.platform !== 'win32') {
+    await installPackagedPengCodexCli().catch((error) => {
+      console.warn('[pengcodex-cli] failed to add PengCodex CLI to PATH:', error)
+    })
+  }
+
   traceStartup('install webview guards:start')
   installDevPreviewWebviewGuards()
   traceStartup('install webview guards:done')
 
   if (process.platform === 'darwin' && !appIcon.isEmpty()) {
-    app.dock.setIcon(appIcon)
+    app.dock?.setIcon(appIcon)
   }
 
-  store = new JsonSettingsStore(app.getPath('userData'))
+  store = new JsonSettingsStore(app.getPath('userData'), electronSettingsSecretCodec())
   traceStartup('settings load:start')
   const initial = await store.load()
   traceStartup('settings load:done')
@@ -878,6 +913,7 @@ app.whenReady().then(async () => {
       write: mergeWriteSettings(prev.write, partial.write),
       claw: mergeClawSettings(prev.claw, partial.claw),
       schedule: mergeScheduleSettings(prev.schedule, partial.schedule),
+      studio: mergeStudioSettings(prev.studio, partial.studio),
       guiUpdate: { ...prev.guiUpdate, ...(partial.guiUpdate ?? {}) }
     })
     if (prev.log.enabled !== next.log.enabled || prev.log.retentionDays !== next.log.retentionDays) {
@@ -961,6 +997,53 @@ app.whenReady().then(async () => {
   dialog.showErrorBox('PengCodex failed to start', message)
   app.quit()
 })
+}
+
+async function runBundledPengCodexCli(argv: string[]): Promise<void> {
+  try {
+    const appRoot = app.isPackaged
+      ? app.getAppPath().replace(/app\.asar$/, 'app.asar.unpacked')
+      : app.getAppPath()
+    const entryPath = join(appRoot, 'kun', 'dist', 'cli', 'serve-entry.js')
+    const cli = await import(pathToFileURL(entryPath).href) as {
+      main(args: readonly string[]): Promise<number>
+    }
+    const exitCode = await cli.main(argv)
+    app.exit(exitCode)
+  } catch (error) {
+    console.error('[pengcodex-cli] failed:', error)
+    app.exit(70)
+  }
+}
+
+async function runPengCodexCliPathSetup(mode: 'install' | 'uninstall'): Promise<void> {
+  try {
+    if (mode === 'install') {
+      await installPackagedPengCodexCli()
+    } else {
+      await removePengCodexCliFromPath()
+    }
+    app.exit(0)
+  } catch (error) {
+    console.error(`[pengcodex-cli] ${mode} failed:`, error)
+    app.exit(1)
+  }
+}
+
+function installPackagedPengCodexCli(): Promise<unknown> {
+  const executablePath = pengCodexCliExecutablePath(process.platform, process.execPath, process.env)
+  return ensurePengCodexCliOnPath(executablePath)
+}
+
+function electronSettingsSecretCodec(): SettingsSecretCodec | undefined {
+  if (!safeStorage.isEncryptionAvailable()) {
+    console.warn('[pengcodex] secure credential storage is unavailable; settings are protected by file permissions only')
+    return undefined
+  }
+  return {
+    encrypt: (value) => safeStorage.encryptString(value).toString('base64'),
+    decrypt: (value) => safeStorage.decryptString(Buffer.from(value, 'base64'))
+  }
 }
 
 app.on('window-all-closed', () => {

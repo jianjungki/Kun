@@ -1,7 +1,8 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join, posix } from 'node:path'
 import type { AppSettingsV1 } from '../shared/app-settings'
+import { atomicWriteFile } from '../../kun/src/adapters/file/atomic-write.js'
 
 const LEGACY_CLAW_SCHEDULE_MCP_MARKER_START = '# DeepSeek GUI plugin:mcp:claw-schedule START'
 const LEGACY_CLAW_SCHEDULE_MCP_MARKER_END = '# DeepSeek GUI plugin:mcp:claw-schedule END'
@@ -233,8 +234,11 @@ export async function syncClawScheduleMcpConfig(
   const next = buildSyncedClawScheduleMcpJson(current, settings, launch)
   const nextText = `${JSON.stringify(next, null, 2)}\n`
   const currentText = current === null ? '' : `${JSON.stringify(current, null, 2)}\n`
-  if (nextText === currentText) return
+  if (nextText === currentText) {
+    await chmod(mcpJsonPath, 0o600).catch(() => undefined)
+    return
+  }
 
   await mkdir(dirname(mcpJsonPath), { recursive: true })
-  await writeFile(mcpJsonPath, nextText, 'utf8')
+  await atomicWriteFile(mcpJsonPath, nextText, { mode: 0o600 })
 }

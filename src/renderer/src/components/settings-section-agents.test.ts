@@ -483,12 +483,19 @@ describe('AgentsSettingsSection Kun diagnostics smoke', () => {
           skills: { status: 'available' },
           subagents: { status: 'available' },
           attachments: { status: 'available' },
-          memory: { status: 'available' }
+          memory: { status: 'available' },
+          lsp: { status: 'available', configuredServers: 2, connectedServers: 1 },
+          browser: { status: 'disabled' },
+          computerUse: { status: 'unavailable' },
+          graph: { status: 'available' },
+          extensions: { status: 'available', toolCount: 3 }
         }
       },
       toolDiagnostics: {
         providers: [{ id: 'builtin' }, { id: 'mcp' }, { id: 'web' }, { id: 'memory' }],
         mcpServers: [{ id: 'github' }],
+        lspServers: [{ id: 'typescript' }],
+        extensions: [{ id: 'example.tools' }],
         skills: { skills: [{ id: 'skill_docs' }] },
         attachments: { count: 1 }
       },
@@ -509,6 +516,10 @@ describe('AgentsSettingsSection Kun diagnostics smoke', () => {
     expect(html).toContain('available')
     expect(html).toContain('2/2')
     expect(html).toContain('brave-search')
+    expect(html).toContain('Computer Use')
+    expect(html).toContain('Graph')
+    expect(html).toContain('1/2')
+    expect(html).toContain('3 tools')
     expect(html).toContain('Providers')
     expect(html).toContain('MCP servers')
     expect(html).toContain('Discovered Skills')

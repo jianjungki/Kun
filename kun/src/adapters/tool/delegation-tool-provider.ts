@@ -32,6 +32,7 @@ export function buildDelegationToolProviders(runtime: DelegationRuntime | undefi
           const record = await runtime.runChild({
             parentThreadId: context.threadId,
             parentTurnId: context.turnId,
+            parentWorkspace: context.workspace,
             label: typeof args.label === 'string' ? args.label : undefined,
             prompt,
             workspace: typeof args.workspace === 'string' ? args.workspace : context.workspace,

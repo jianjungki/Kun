@@ -208,6 +208,24 @@ export type CoreRuntimeCapabilityManifestJson = {
     scopes: Array<'user' | 'workspace' | 'project'>
     maxInjectedRecords: number
   }
+  lsp?: CoreRuntimeCapabilityStateJson & {
+    configuredServers: number
+    connectedServers: number
+  }
+  browser?: CoreRuntimeCapabilityStateJson & {
+    transport: 'cdp' | 'none'
+  }
+  computerUse?: CoreRuntimeCapabilityStateJson & {
+    backend: string
+  }
+  graph?: CoreRuntimeCapabilityStateJson & {
+    maxParallel: number
+    maxNodes: number
+  }
+  extensions?: CoreRuntimeCapabilityStateJson & {
+    discoveredExtensions: number
+    toolCount: number
+  }
 }
 
 export type CoreRuntimeInfoJson = {
@@ -243,6 +261,8 @@ export type CoreRuntimeToolDiagnosticsJson = {
 	    catalogDrift?: boolean
 	  }
   webProviders?: Array<Record<string, unknown>>
+  lspServers?: Array<Record<string, unknown>>
+  extensions?: Array<Record<string, unknown>>
   skills?: {
     enabled?: boolean
     roots?: Array<Record<string, unknown>>
