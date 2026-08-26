@@ -1,0 +1,217 @@
+name: Windows Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (for example 0.2.9; leave empty to increment the latest v* tag)'
+        required: false
+        type: string
+      prerelease:
+        description: 'Mark the GitHub Release as a prerelease'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  # Share the lock with the full stable release so both workflows cannot
+  # allocate the same next patch tag concurrently.
+  group: release-master
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22'
+  RELEASE_CHANNEL: stable
+
+jobs:
+  release-windows:
+    name: Build and publish Windows packages
+    runs-on: windows-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Check out master
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: master
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.23.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Determine release version
+        id: version
+        shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          $masterSha = (git rev-parse HEAD).Trim()
+          "commit=$masterSha" >> $env:GITHUB_OUTPUT
+
+          if ([string]::IsNullOrWhiteSpace($env:REQUESTED_VERSION)) {
+            $env:CI_RELEASE_FORCE_BUMP = '1'
+            node ./scripts/compute-ci-release-version.cjs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            exit 0
+          }
+
+          $version = $env:REQUESTED_VERSION.Trim().TrimStart('v')
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            Write-Error "Version must use x.y.z format, got: $version"
+            exit 1
+          }
+
+          $tag = "v$version"
+          $headSha = (git rev-parse HEAD).Trim()
+          git rev-parse --verify --quiet "refs/tags/$tag" | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            $tagSha = (git rev-list -n 1 $tag).Trim()
+            if ($tagSha -ne $headSha) {
+              Write-Error "Tag $tag points at $tagSha, but master points at $headSha"
+              exit 1
+            }
+          }
+
+          $previousTag = git tag --list 'v*' --sort=-version:refname |
+            Where-Object { $_ -ne $tag } |
+            Select-Object -First 1
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "release_name=PengCodex $version" >> $env:GITHUB_OUTPUT
+          "previous_tag=$previousTag" >> $env:GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Windows installer and portable app
+        env:
+          PENGCODEX_APP_VERSION: ${{ steps.version.outputs.version }}
+          PENGCODEX_UPDATE_CHANNEL: ${{ env.RELEASE_CHANNEL }}
+        run: npm run dist:win
+
+      - name: Verify Windows packages
+        id: assets
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $installer = "dist/PengCodex-$env:RELEASE_VERSION-win-x64.exe"
+          $portable = "dist/PengCodex-$env:RELEASE_VERSION-win-x64-portable.exe"
+          $blockmap = "$installer.blockmap"
+          $updateMetadata = 'dist/latest.yml'
+
+          foreach ($path in @($installer, $portable, $blockmap, $updateMetadata)) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              Write-Error "Missing release asset: $path"
+              Get-ChildItem dist -File | Select-Object Name, Length
+              exit 1
+            }
+          }
+
+          "installer=$installer" >> $env:GITHUB_OUTPUT
+          "portable=$portable" >> $env:GITHUB_OUTPUT
+          "blockmap=$blockmap" >> $env:GITHUB_OUTPUT
+          "update_metadata=$updateMetadata" >> $env:GITHUB_OUTPUT
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PengCodex-${{ steps.version.outputs.version }}-windows
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            ${{ steps.assets.outputs.installer }}
+            ${{ steps.assets.outputs.portable }}
+            ${{ steps.assets.outputs.blockmap }}
+            ${{ steps.assets.outputs.update_metadata }}
+
+      - name: Generate release notes
+        shell: pwsh
+        env:
+          PREVIOUS_TAG: ${{ steps.version.outputs.previous_tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          MASTER_SHA: ${{ steps.version.outputs.commit }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PREVIOUS_TAG)) {
+            node ./scripts/generate-release-notes.cjs | Out-File release-notes.md -Encoding utf8
+          } else {
+            node ./scripts/generate-release-notes.cjs $env:PREVIOUS_TAG | Out-File release-notes.md -Encoding utf8
+          }
+
+          @"
+
+          ---
+
+          ### Windows 下载
+
+          - 安装版：PengCodex-$env:RELEASE_VERSION-win-x64.exe
+          - 便携版：PengCodex-$env:RELEASE_VERSION-win-x64-portable.exe
+          - Branch: master
+          - Commit: $($env:MASTER_SHA.Substring(0, 7))
+          "@ | Add-Content release-notes.md -Encoding utf8
+
+      - name: Create tag and GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.version.outputs.tag }}
+          RELEASE_NAME: ${{ steps.version.outputs.release_name }}
+          IS_PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git rev-parse --verify --quiet "refs/tags/$env:TAG_NAME" | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            git tag -a $env:TAG_NAME -m $env:RELEASE_NAME HEAD
+            git push origin "refs/tags/$env:TAG_NAME"
+          }
+
+          gh release view $env:TAG_NAME | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $env:TAG_NAME `
+              --title $env:RELEASE_NAME `
+              --notes-file release-notes.md `
+              --draft=false `
+              --prerelease=$env:IS_PRERELEASE
+          } else {
+            $arguments = @(
+              'release', 'create', $env:TAG_NAME,
+              '--verify-tag',
+              '--title', $env:RELEASE_NAME,
+              '--notes-file', 'release-notes.md'
+            )
+            if ($env:IS_PRERELEASE -eq 'true') { $arguments += '--prerelease' }
+            gh @arguments
+          }
+
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload assets to GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.version.outputs.tag }}
+          INSTALLER: ${{ steps.assets.outputs.installer }}
+          PORTABLE: ${{ steps.assets.outputs.portable }}
+          BLOCKMAP: ${{ steps.assets.outputs.blockmap }}
+          UPDATE_METADATA: ${{ steps.assets.outputs.update_metadata }}
+        run: |
+          gh release upload $env:TAG_NAME `
+            $env:INSTALLER `
+            $env:PORTABLE `
+            $env:BLOCKMAP `
+            $env:UPDATE_METADATA `
+            --clobber

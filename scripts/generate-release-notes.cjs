@@ -13,6 +13,7 @@ const { execFileSync } = require('node:child_process')
 
 const CONVENTIONAL =
   /^(feat|fix|perf|refactor|docs|chore|test|build|ci)(\([\w./-]+\))?!?:\s*(.+)$/i
+const REPOSITORY = process.env.GITHUB_REPOSITORY || 'XingYu-Zhong/PengCodex'
 
 const GROUPS = [
   { key: 'feat', heading: '### ✨ 新功能' },
@@ -99,7 +100,7 @@ function main() {
 
   const out = ['## 更新摘要', '']
   if (sinceTag) {
-    out.push(`自 [\`${sinceTag}\`](https://github.com/XingYu-Zhong/PengCodex/compare/${sinceTag}...HEAD) 以来的变更：`, '')
+    out.push(`自 [\`${sinceTag}\`](https://github.com/${REPOSITORY}/compare/${sinceTag}...HEAD) 以来的变更：`, '')
   }
 
   let wroteSection = false

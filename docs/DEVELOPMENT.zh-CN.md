@@ -145,7 +145,7 @@ PR 描述建议至少包含：
 
 - 基于最新三段式 semver tag 自动生成下一个 `vX.Y.Z` patch tag
 - 如果 rerun 时当前 merge commit 已经有 tag，则复用该 tag
-- 构建已签名并公证的 macOS arm64/x64 包、Windows x64 安装器、Linux x64 AppImage
+- 构建已签名并公证的 macOS arm64/x64 包、Windows x64 安装器与 portable 便携版、Linux x64 AppImage
 - 将发布产物和更新元数据上传到 GitHub Releases 与 R2 `stable` 渠道
 - 只有在全部平台上传成功后，才会 promote R2 `stable/latest`
 
@@ -158,6 +158,10 @@ PR 描述建议至少包含：
 仓库的 Actions 设置还需要允许 `GITHUB_TOKEN` 写入 repository contents，这样 workflow 才能创建 tag 并发布 Release。
 
 本地 `npm run release:mac` 和 `npm run release:win` 命令保留为手动兜底工具。
+
+需要自行测试 Windows 包时，可在 Actions 中手动运行 `Windows Release`。该 workflow 固定使用 `master`，会将
+安装版 EXE、portable EXE 和 `latest.yml` 挂载到对应的 GitHub Release；留空版本号会自动递增最新 patch 版本，
+默认发布为 prerelease。
 
 ## 分支命名建议
 

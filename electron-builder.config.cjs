@@ -68,6 +68,9 @@ module.exports = {
   appId: 'com.xingyuzhong.pengcodex',
   productName: 'PengCodex',
   asar: true,
+  // Windows rcedit cannot update Electron 39 after the optional INTEGRITY
+  // resource is embedded. The corresponding Electron fuse is not enabled.
+  disableAsarIntegrity: process.platform === 'win32',
   asarUnpack: [
     '**/kun/dist/**/*',
     '**/kun/package*.json',
@@ -122,9 +125,14 @@ module.exports = {
   },
   win: {
     icon: './src/asset/img/deepseek.png',
-    target: [{ target: 'nsis', arch: ['x64'] }]
+    target: [
+      { target: 'nsis', arch: ['x64'] },
+      { target: 'portable', arch: ['x64'] }
+    ]
   },
   nsis: {
+    // Keep the installer name stable for electron-updater and existing releases.
+    artifactName: `PengCodex-${artifactVersion}-win-${'${arch}'}.${'${ext}'}`,
     include: 'build/installer.nsh',
     oneClick: false,
     allowToChangeInstallationDirectory: true,
@@ -137,6 +145,10 @@ module.exports = {
     shortcutName: 'PengCodex',
     uninstallDisplayName: 'PengCodex',
     deleteAppDataOnUninstall: false
+  },
+  portable: {
+    // Portable builds are intentionally distinct from the NSIS installer.
+    artifactName: `PengCodex-${artifactVersion}-win-${'${arch}'}-portable.${'${ext}'}`
   },
   linux: {
     category: 'Development',

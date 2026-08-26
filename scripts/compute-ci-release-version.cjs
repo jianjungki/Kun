@@ -61,8 +61,8 @@ function previousSemverTag(tags, selectedTag) {
   return newestSemverTag(unique(tags).filter((tag) => tag !== selectedTag))
 }
 
-function computeReleaseVersion({ allTags = [], headTags = [], packageVersion }) {
-  const existingHeadTag = newestSemverTag(headTags)
+function computeReleaseVersion({ allTags = [], headTags = [], packageVersion, forceBump = false }) {
+  const existingHeadTag = forceBump ? null : newestSemverTag(headTags)
   if (existingHeadTag) {
     const previous = previousSemverTag(allTags, existingHeadTag.tag)
     return {
@@ -133,12 +133,14 @@ function writeGitHubOutputs(result) {
 
 function main() {
   const noFetch = process.argv.includes('--no-fetch') || process.env.CI_RELEASE_NO_FETCH === '1'
+  const forceBump = process.env.CI_RELEASE_FORCE_BUMP === '1'
   if (!noFetch) fetchTags()
 
   const result = computeReleaseVersion({
     allTags: gitLines(['tag', '--list', 'v*']),
     headTags: gitLines(['tag', '--points-at', 'HEAD', '--list', 'v*']),
-    packageVersion: readPackageVersion()
+    packageVersion: readPackageVersion(),
+    forceBump
   })
 
   writeGitHubOutputs(result)

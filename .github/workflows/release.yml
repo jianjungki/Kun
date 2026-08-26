@@ -68,14 +68,19 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.merge_commit_sha }}
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.23.0
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Decode Apple signing credentials
         env:
@@ -148,16 +153,21 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.merge_commit_sha }}
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.23.0
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
-      - name: Build Windows installer
+      - name: Build Windows installer and portable app
         run: npm run dist:win
 
       - name: Upload Windows artifacts
@@ -169,6 +179,7 @@ jobs:
           path: |
             dist/PengCodex-*-win-x64.exe
             dist/PengCodex-*-win-x64.exe.blockmap
+            dist/PengCodex-*-win-x64-portable.exe
             dist/latest.yml
 
   build-linux:
@@ -187,11 +198,16 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.merge_commit_sha }}
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.23.0
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
 
       - name: Install Linux packaging dependencies
         run: |
@@ -199,7 +215,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends libarchive-tools rpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build Linux AppImage
         run: npm run dist:linux
@@ -245,14 +261,19 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.merge_commit_sha }}
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.23.0
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Download release artifacts
         uses: actions/download-artifact@v4
@@ -270,6 +291,7 @@ jobs:
             "PengCodex-*-mac-arm64.zip"
             "PengCodex-*-mac-x64.zip"
             "PengCodex-*-win-x64.exe"
+            "PengCodex-*-win-x64-portable.exe"
             "PengCodex-*-linux-x86_64.AppImage"
             "latest-mac.yml"
             "latest.yml"
@@ -306,7 +328,7 @@ jobs:
             echo "- Branch: \`master\`"
             echo "- Commit: \`${GITHUB_SHA::7}\`"
             echo "- macOS: Developer ID signed and notarized"
-            echo "- Platforms: macOS arm64/x64, Windows x64, Linux x64"
+            echo "- Platforms: macOS arm64/x64, Windows x64 installer/portable, Linux x64"
           } >> release-notes.md
 
       - name: Ensure release tag

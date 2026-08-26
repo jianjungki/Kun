@@ -83,7 +83,7 @@ build_mac_arch() {
   mkdir -p "${output_dir}" "$(dirname "${log_file}")"
   cyan "  ${arch}: building dmg + zip -> ${output_dir}"
   DEEPSEEK_GUI_DIST_DIR="${output_dir}" \
-    npx --yes electron-builder@26.8.1 --config electron-builder.config.cjs --publish never --mac dmg "--${arch}" \
+    npx --yes electron-builder@26.15.3 --config electron-builder.config.cjs --publish never --mac dmg "--${arch}" \
     >"${log_file}" 2>&1
   DEEPSEEK_GUI_DIST_DIR="${output_dir}" \
     node "${ROOT}/scripts/zip-mac-app.cjs" "${arch}" \
@@ -120,7 +120,7 @@ build_macos_parallel() {
   npm run build || die "electron-vite build failed"
 
   cyan "Preparing electron-builder..."
-  npx --yes electron-builder@26.8.1 --version >/dev/null \
+  npx --yes electron-builder@26.15.3 --version >/dev/null \
     || die "Failed to prepare electron-builder"
 
   cyan "Building macOS arm64 and x64 in parallel..."

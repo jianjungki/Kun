@@ -144,9 +144,15 @@ npm run build           # production build
 npm run typecheck       # TypeScript typecheck
 npm run test            # unit tests
 npm run dist:mac        # macOS packages
-npm run dist:win        # Windows installer
+npm run dist:win        # Windows installer + portable app
+npm run dist:win:portable # Windows portable app only
 npm run dist:linux      # Linux AppImage
 ```
+
+To publish a Windows test build yourself, run `Windows Release` from the Actions page. The workflow always
+checks out `master`; you can enter an `x.y.z` version or leave it empty to increment the latest patch version.
+It attaches the installer EXE, portable EXE, and update metadata to the matching GitHub Release. Keep the
+prerelease option enabled for test builds.
 
 Release scripts now prefer `PENGCODEX_*` environment variables and keep compatibility with older `DEEPSEEK_GUI_*` variables.
 

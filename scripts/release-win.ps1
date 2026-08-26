@@ -1,4 +1,4 @@
-# Windows release: build NSIS installer and upload to an existing GitHub release tag.
+# Windows release: build NSIS installer + portable app and upload to an existing GitHub release tag.
 # Use the same tag created by release-mac.sh on macOS.
 #
 # Usage (PowerShell):
@@ -163,7 +163,7 @@ Remove-Item -Force -ErrorAction SilentlyContinue `
   (Join-Path $Root 'dist\latest*.yml'), `
   (Join-Path $Root 'dist\*.blockmap')
 
-Write-Info 'Building Windows installer...'
+Write-Info 'Building Windows installer and portable app...'
 & npm run dist:win
 if ($LASTEXITCODE -ne 0) {
   Write-Err 'Windows build failed (npm run dist:win).'
@@ -172,8 +172,10 @@ if ($LASTEXITCODE -ne 0) {
 
 $DistDir = Join-Path $Root 'dist'
 $AssetSpecs = @(
-  @{ Label = 'Windows exe'; Filter = '*-win-*.exe' },
-  @{ Label = 'Windows blockmap'; Filter = '*-win-*.exe.blockmap' }
+  @{ Label = 'Windows installer'; Filter = '*-win-x64.exe' },
+  @{ Label = 'Windows portable app'; Filter = '*-win-x64-portable.exe' },
+  @{ Label = 'Windows blockmap'; Filter = '*-win-x64.exe.blockmap' },
+  @{ Label = 'Windows update metadata'; Filter = 'latest.yml' }
 )
 
 $Assets = @()

@@ -145,7 +145,7 @@ The release workflow:
 
 - computes the next `vX.Y.Z` patch tag from the latest three-part semver tag
 - reuses a tag that already points at the merge commit when a workflow is rerun
-- builds signed and notarized macOS arm64/x64 packages, a Windows x64 installer, and a Linux x64 AppImage
+- builds signed and notarized macOS arm64/x64 packages, Windows x64 installer and portable packages, and a Linux x64 AppImage
 - uploads release assets and update metadata to GitHub Releases and the R2 `stable` channel
 - promotes R2 `stable/latest` only after all platform uploads succeed
 
@@ -158,6 +158,10 @@ Repository maintainers must configure these GitHub Actions secrets before the fi
 The repository Actions settings must allow `GITHUB_TOKEN` to write repository contents so the workflow can create tags and publish releases.
 
 The local `npm run release:mac` and `npm run release:win` commands remain available as manual fallback tools.
+
+For a self-service Windows test build, run `Windows Release` manually from Actions. It always uses `master` and
+attaches the installer EXE, portable EXE, and `latest.yml` to the matching GitHub Release. Leaving the version
+empty increments the latest patch version; test releases are prereleases by default.
 
 ## Suggested Branch Naming
 

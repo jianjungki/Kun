@@ -16,6 +16,7 @@ type ReleaseVersionModule = {
     allTags?: string[]
     headTags?: string[]
     packageVersion: string
+    forceBump?: boolean
   }): ReleaseVersionResult
   newestSemverTag(tags: string[]): { tag: string; version: string } | null
 }
@@ -66,6 +67,22 @@ describe('CI release version computation', () => {
       tag: 'v0.2.5',
       previousTag: 'v0.2.4',
       existingTag: true
+    })
+  })
+
+  it('can force a fresh patch tag for manual test releases', () => {
+    expect(
+      releaseVersion.computeReleaseVersion({
+        allTags: ['v0.2.3', 'v0.2.4', 'v0.2.5'],
+        headTags: ['v0.2.5'],
+        packageVersion: '0.1.0',
+        forceBump: true
+      })
+    ).toMatchObject({
+      version: '0.2.6',
+      tag: 'v0.2.6',
+      previousTag: 'v0.2.5',
+      existingTag: false
     })
   })
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Windows release: build NSIS installer and upload to an existing GitHub release tag.
+# Windows release: build NSIS installer + portable app and upload to an existing GitHub release tag.
 # Must use the same tag created by release-mac.sh.
 #
 # Usage:
@@ -107,8 +107,10 @@ collect() {
   done
 }
 
-collect "Windows exe" "dist/PengCodex-*-win-*.exe"
-collect "Windows blockmap" "dist/PengCodex-*-win-*.exe.blockmap"
+collect "Windows installer" "dist/PengCodex-*-win-x64.exe"
+collect "Windows portable app" "dist/PengCodex-*-win-x64-portable.exe"
+collect "Windows blockmap" "dist/PengCodex-*-win-x64.exe.blockmap"
+collect "Windows update metadata" "dist/latest.yml"
 
 cyan "Uploading ${#ASSETS[@]} Windows asset(s) to ${TAG_NAME}..."
 for asset in "${ASSETS[@]}"; do

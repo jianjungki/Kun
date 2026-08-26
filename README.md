@@ -144,9 +144,14 @@ npm run build           # 生产构建
 npm run typecheck       # TypeScript 类型检查
 npm run test            # 单元测试
 npm run dist:mac        # macOS 安装包
-npm run dist:win        # Windows 安装包
+npm run dist:win        # Windows 安装包 + portable 便携版
+npm run dist:win:portable # 仅构建 Windows portable 便携版
 npm run dist:linux      # Linux AppImage
 ```
+
+需要从 GitHub 自行发布 Windows 测试包时，在 Actions 中运行 `Windows Release`。该 workflow 固定检出
+`master`，可填写 `x.y.z` 版本号（留空则自动递增 patch 版本），并将安装版 EXE、portable EXE 和更新元数据
+挂载到对应的 GitHub Release。测试发布建议保留默认的 prerelease 选项。
 
 发布脚本现在优先读取 `PENGCODEX_*` 环境变量，并兼容旧的 `DEEPSEEK_GUI_*` 变量。
 
