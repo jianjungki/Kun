@@ -2,12 +2,19 @@ import type { GuiUpdateChannel } from './gui-update'
 import type { KeyboardShortcutsConfigV1 } from './keyboard-shortcuts'
 import type { ApprovalPolicy, SandboxMode } from '../../kun/src/contracts/policy.js'
 import type { ModelEndpointFormat } from '../../kun/src/contracts/model-endpoint-format.js'
+import type { ModelProviderKind } from '../../kun/src/contracts/model-provider.js'
 export {
   DEFAULT_MODEL_ENDPOINT_FORMAT,
   MODEL_ENDPOINT_FORMATS,
   modelEndpointPath,
   normalizeModelEndpointFormat
 } from '../../kun/src/contracts/model-endpoint-format.js'
+export {
+  DEFAULT_MODEL_PROVIDER_KIND,
+  MODEL_PROVIDER_KINDS,
+  normalizeModelProviderKind,
+  type ModelProviderKind
+} from '../../kun/src/contracts/model-provider.js'
 export { DEFAULT_GUI_UPDATE_CHANNEL, normalizeGuiUpdateChannel, type GuiUpdateChannel } from './gui-update'
 export {
   DEFAULT_APPROVAL_POLICY,
@@ -29,6 +36,7 @@ export type ClawTaskStatus = ScheduleTaskStatus
 export type ClawModel = ScheduleModel
 
 export const DEFAULT_DEEPSEEK_BASE_URL = 'https://api.deepseek.com'
+export const DEFAULT_OPENAI_COMPAT_BASE_URL = 'https://api.openai.com/v1'
 export const DEFAULT_CLAW_MODEL = 'auto'
 export const CLAW_MODEL_IDS = ['auto', 'deepseek-v4-pro', 'deepseek-v4-flash'] as const
 export const DEFAULT_SCHEDULE_MODEL = DEFAULT_CLAW_MODEL
@@ -36,8 +44,8 @@ export const SCHEDULE_MODEL_IDS = CLAW_MODEL_IDS
 export const DEFAULT_SCHEDULE_REASONING_EFFORT = 'medium'
 export const SCHEDULE_REASONING_EFFORT_IDS = ['off', 'low', 'medium', 'high', 'max'] as const
 export const DEFAULT_SCHEDULE_INTERNAL_PORT = 8788
-export const DEFAULT_WRITE_WORKSPACE_ROOT = '~/.deepseekgui/write_workspace'
-export const DEFAULT_KUN_DATA_DIR = '~/.deepseekgui/kun'
+export const DEFAULT_WRITE_WORKSPACE_ROOT = '~/.pengcodex/write_workspace'
+export const DEFAULT_KUN_DATA_DIR = '~/.pengcodex/runtime'
 export const DEFAULT_KUN_MODEL = 'deepseek-v4-pro'
 export const DEFAULT_WRITE_INLINE_COMPLETION_BASE_URL = 'https://api.deepseek.com/beta'
 export const DEFAULT_WRITE_INLINE_COMPLETION_MODEL = 'deepseek-v4-flash'
@@ -57,6 +65,7 @@ export type { ModelEndpointFormat }
 export type ModelProviderProfileV1 = {
   id: string
   name: string
+  providerKind: ModelProviderKind
   apiKey: string
   baseUrl: string
   endpointFormat: ModelEndpointFormat
@@ -75,6 +84,32 @@ export type ModelProviderSettingsPatchV1 = Partial<
   providers?: ModelProviderProfilePatchV1[]
 }
 
+export type StudioMediaGenerationSettingsV1 = {
+  enabled: boolean
+  /** Selected shared provider profile. Empty means the default provider. */
+  providerId: string
+  /** Effective provider implementation used by Vercel AI SDK. */
+  providerKind: ModelProviderKind
+  /** Optional capability-only API key override. Empty means inherit the provider profile key. */
+  apiKey: string
+  /** Optional capability-only base URL override. Empty means inherit the provider profile URL. */
+  baseUrl: string
+  model: string
+}
+
+export type StudioSettingsV1 = {
+  /** Hidden by default. When false, the GUI does not show Studio mode. */
+  enabled: boolean
+  image: StudioMediaGenerationSettingsV1
+  video: StudioMediaGenerationSettingsV1
+}
+
+export type StudioMediaGenerationSettingsPatchV1 = Partial<StudioMediaGenerationSettingsV1>
+export type StudioSettingsPatchV1 = Partial<Omit<StudioSettingsV1, 'image' | 'video'>> & {
+  image?: StudioMediaGenerationSettingsPatchV1
+  video?: StudioMediaGenerationSettingsPatchV1
+}
+
 export type KunRuntimeSettingsV1 = {
   binaryPath: string
   port: number
@@ -85,6 +120,8 @@ export type KunRuntimeSettingsV1 = {
   baseUrl: string
   /** Selected General model provider profile. Empty or missing means the default provider. */
   providerId: string
+  /** Effective provider implementation used by Vercel AI SDK. */
+  providerKind: ModelProviderKind
   /** Effective model request format. Resolved from the selected model provider. */
   endpointFormat: ModelEndpointFormat
   runtimeToken: string
@@ -94,17 +131,19 @@ export type KunRuntimeSettingsV1 = {
   sandboxMode: SandboxMode
   /** Compress safe tool context before each model call. */
   tokenEconomyMode: boolean
-  /** Detailed token-saving behavior used when building Kun model requests. */
+  /** Detailed token-saving behavior used when building PengCodex Core model requests. */
   tokenEconomy: KunTokenEconomySettingsV1
   /** When true, the runtime skips bearer-token auth. Local dev only. */
   insecure: boolean
-  /** GUI-managed MCP progressive discovery/search settings written into Kun config.json. */
+  /** GUI-managed MCP progressive discovery/search settings written into PengCodex Core config.json. */
   mcpSearch: KunMcpSearchSettingsV1
-  /** GUI-managed web fetch/search settings written into Kun config.json. */
+  /** GUI-managed web fetch/search settings written into PengCodex Core config.json. */
   webSearch: KunWebSearchSettingsV1
-  /** Persistent store backend used by Kun. */
+  /** GUI-managed Skill registry activation settings written into PengCodex Core config.json. */
+  skillRegistry: KunSkillRegistrySettingsV1
+  /** Persistent store backend used by PengCodex Core. */
   storage: KunStorageSettingsV1
-  /** Fallback compaction thresholds and summary behavior. Per-model thresholds live in Kun config models.profiles. */
+  /** Fallback compaction thresholds and summary behavior. Per-model thresholds live in PengCodex Core config models.profiles. */
   contextCompaction: KunContextCompactionSettingsV1
   /** Low-level loop guards and model argument repair tuning. */
   runtimeTuning: KunRuntimeTuningSettingsV1
@@ -136,6 +175,13 @@ export type KunWebSearchSettingsV1 = {
   baseUrl: string
   allowDomains: string[]
   denyDomains: string[]
+}
+
+export type KunSkillRegistryActivationMode = 'all' | 'selected'
+
+export type KunSkillRegistrySettingsV1 = {
+  activationMode: KunSkillRegistryActivationMode
+  activeSkillIds: string[]
 }
 
 export type KunStorageBackend = 'hybrid' | 'file'
@@ -214,11 +260,18 @@ export type KunTokenEconomySettingsPatchV1 = Partial<
 export type KunRuntimeSettingsPatchV1 = Partial<
   Omit<
     KunRuntimeSettingsV1,
-    'mcpSearch' | 'webSearch' | 'storage' | 'contextCompaction' | 'runtimeTuning' | 'tokenEconomy'
+    | 'mcpSearch'
+    | 'webSearch'
+    | 'skillRegistry'
+    | 'storage'
+    | 'contextCompaction'
+    | 'runtimeTuning'
+    | 'tokenEconomy'
   >
 > & {
   mcpSearch?: Partial<KunMcpSearchSettingsV1>
   webSearch?: Partial<KunWebSearchSettingsV1>
+  skillRegistry?: Partial<KunSkillRegistrySettingsV1>
   tokenEconomy?: KunTokenEconomySettingsPatchV1
   storage?: Partial<KunStorageSettingsV1>
   contextCompaction?: Partial<KunContextCompactionSettingsV1>
@@ -381,7 +434,7 @@ export type ClawImConversationV1 = {
   latestMessageId: string
   senderId: string
   senderName: string
-  /** Kun thread id this conversation maps to. */
+  /** PengCodex Core thread id this conversation maps to. */
   localThreadId: string
   workspaceRoot: string
   createdAt: string
@@ -394,7 +447,7 @@ export type ClawImChannelV1 = {
   label: string
   enabled: boolean
   model: string
-  /** Kun thread id this channel maps to. */
+  /** PengCodex Core thread id this channel maps to. */
   threadId: string
   workspaceRoot: string
   agentProfile: ClawImAgentProfileV1
@@ -419,7 +472,7 @@ export type WriteInlineCompletionSettingsV1 = {
   longCompletionEnabled: boolean
   apiKey: string
   baseUrl: string
-  /** When true, Write inherits Kun's runtime model instead of using `model` as an override. */
+  /** When true, Write inherits PengCodex Core's runtime model instead of using `model` as an override. */
   inheritModel: boolean
   model: string
   debounceMs: number
@@ -511,12 +564,13 @@ export type AppSettingsV1 = {
   write: WriteSettingsV1
   claw: ClawSettingsV1
   schedule: ScheduleSettingsV1
+  studio: StudioSettingsV1
   guiUpdate: GuiUpdateConfigV1
   codePromptPrefix: string
 }
 
 export type AppSettingsPatch = Partial<
-  Omit<AppSettingsV1, 'provider' | 'agents' | 'log' | 'notifications' | 'appBehavior' | 'keyboardShortcuts' | 'write' | 'claw' | 'schedule' | 'guiUpdate'>
+  Omit<AppSettingsV1, 'provider' | 'agents' | 'log' | 'notifications' | 'appBehavior' | 'keyboardShortcuts' | 'write' | 'claw' | 'schedule' | 'studio' | 'guiUpdate'>
 > & {
   provider?: ModelProviderSettingsPatchV1
   agents?: KunSettingsEnvelopePatchV1
@@ -527,5 +581,6 @@ export type AppSettingsPatch = Partial<
   write?: WriteSettingsPatchV1
   claw?: ClawSettingsPatchV1
   schedule?: ScheduleSettingsPatchV1
+  studio?: StudioSettingsPatchV1
   guiUpdate?: Partial<GuiUpdateConfigV1>
 }

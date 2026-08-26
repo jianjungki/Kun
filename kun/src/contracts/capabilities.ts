@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 1
+export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 2
 
 export const RuntimeCapabilityStatus = z.enum(['available', 'disabled', 'unavailable'])
 export type RuntimeCapabilityStatus = z.infer<typeof RuntimeCapabilityStatus>
@@ -158,6 +158,7 @@ export type WebCapabilityConfig = z.infer<typeof WebCapabilityConfig>
 
 export const SkillsCapabilityConfig = CapabilityToggleConfig.extend({
   roots: z.array(z.string().min(1)).default([]),
+  enabledSkillIds: z.array(z.string().min(1)).default([]),
   legacySkillMd: z.boolean().default(true)
 }).strict()
 export type SkillsCapabilityConfig = z.infer<typeof SkillsCapabilityConfig>
@@ -192,6 +193,59 @@ export const MemoryCapabilityConfig = CapabilityToggleConfig.extend({
 }).strict()
 export type MemoryCapabilityConfig = z.infer<typeof MemoryCapabilityConfig>
 
+export const LspServerConfig = z
+  .object({
+    enabled: z.boolean().default(true),
+    command: z.string().min(1),
+    args: z.array(z.string()).default([]),
+    extensions: z.array(z.string().min(1)).default([]),
+    env: StringRecord.default({}),
+    initializationOptions: z.unknown().optional(),
+    timeoutMs: z.number().int().positive().default(10_000)
+  })
+  .strict()
+export type LspServerConfig = z.infer<typeof LspServerConfig>
+
+export const LspCapabilityConfig = CapabilityToggleConfig.extend({
+  servers: z.record(z.string().min(1), LspServerConfig).default({})
+}).strict()
+export type LspCapabilityConfig = z.infer<typeof LspCapabilityConfig>
+
+export const BrowserCapabilityConfig = CapabilityToggleConfig.extend({
+  cdpEndpoint: z.string().url().optional(),
+  executablePath: z.string().min(1).optional(),
+  args: z.array(z.string()).default([]),
+  headless: z.boolean().default(true),
+  allowedDomains: z.array(z.string().min(1)).default([]),
+  actionTimeoutMs: z.number().int().positive().default(15_000),
+  maxActionsPerTurn: z.number().int().positive().default(40)
+}).strict()
+export type BrowserCapabilityConfig = z.infer<typeof BrowserCapabilityConfig>
+
+export const ComputerUseCapabilityConfig = CapabilityToggleConfig.extend({
+  backend: z.enum(['nutjs']).default('nutjs'),
+  maxScreenshotWidth: z.number().int().positive().default(1600),
+  maxScreenshotHeight: z.number().int().positive().default(1200),
+  actionDelayMs: z.number().int().nonnegative().default(50)
+}).strict()
+export type ComputerUseCapabilityConfig = z.infer<typeof ComputerUseCapabilityConfig>
+
+export const GraphCapabilityConfig = CapabilityToggleConfig.extend({
+  maxParallel: z.number().int().positive().default(2),
+  maxNodes: z.number().int().positive().default(12),
+  failFast: z.boolean().default(false)
+}).strict()
+export type GraphCapabilityConfig = z.infer<typeof GraphCapabilityConfig>
+
+export const ExtensionsCapabilityConfig = CapabilityToggleConfig.extend({
+  roots: z.array(z.string().min(1)).default([]),
+  trustedWorkspaceRoots: z.array(z.string().min(1)).default([]),
+  allowExecutables: z.array(z.string().min(1)).default([]),
+  envAllowlist: z.array(z.string().min(1)).default([]),
+  maxOutputBytes: z.number().int().positive().default(1024 * 1024)
+}).strict()
+export type ExtensionsCapabilityConfig = z.infer<typeof ExtensionsCapabilityConfig>
+
 export const KunCapabilitiesConfig = z
   .object({
     mcp: McpCapabilityConfig.default(() => McpCapabilityConfig.parse({})),
@@ -199,7 +253,12 @@ export const KunCapabilitiesConfig = z
     skills: SkillsCapabilityConfig.default(() => SkillsCapabilityConfig.parse({})),
     subagents: SubagentsCapabilityConfig.default(() => SubagentsCapabilityConfig.parse({})),
     attachments: AttachmentsCapabilityConfig.default(() => AttachmentsCapabilityConfig.parse({})),
-    memory: MemoryCapabilityConfig.default(() => MemoryCapabilityConfig.parse({}))
+    memory: MemoryCapabilityConfig.default(() => MemoryCapabilityConfig.parse({})),
+    lsp: LspCapabilityConfig.default(() => LspCapabilityConfig.parse({})),
+    browser: BrowserCapabilityConfig.default(() => BrowserCapabilityConfig.parse({})),
+    computerUse: ComputerUseCapabilityConfig.default(() => ComputerUseCapabilityConfig.parse({})),
+    graph: GraphCapabilityConfig.default(() => GraphCapabilityConfig.parse({})),
+    extensions: ExtensionsCapabilityConfig.default(() => ExtensionsCapabilityConfig.parse({}))
   })
   .strict()
 export type KunCapabilitiesConfig = z.infer<typeof KunCapabilitiesConfig>
@@ -256,6 +315,24 @@ export const RuntimeCapabilityManifest = z
     memory: RuntimeCapabilityState.extend({
       scopes: z.array(z.enum(['user', 'workspace', 'project'])),
       maxInjectedRecords: z.number().int().positive()
+    }).strict(),
+    lsp: RuntimeCapabilityState.extend({
+      configuredServers: z.number().int().nonnegative(),
+      connectedServers: z.number().int().nonnegative()
+    }).strict(),
+    browser: RuntimeCapabilityState.extend({
+      transport: z.enum(['cdp', 'none'])
+    }).strict(),
+    computerUse: RuntimeCapabilityState.extend({
+      backend: z.string()
+    }).strict(),
+    graph: RuntimeCapabilityState.extend({
+      maxParallel: z.number().int().positive(),
+      maxNodes: z.number().int().positive()
+    }).strict(),
+    extensions: RuntimeCapabilityState.extend({
+      discoveredExtensions: z.number().int().nonnegative(),
+      toolCount: z.number().int().nonnegative()
     }).strict()
   })
   .strict()
@@ -296,6 +373,16 @@ export function buildRuntimeCapabilityManifest(input: {
   }
   subagents?: {
     available?: boolean
+    reason?: string
+  }
+  lsp?: { available?: boolean; connectedServers?: number; reason?: string }
+  browser?: { available?: boolean; reason?: string }
+  computerUse?: { available?: boolean; reason?: string }
+  graph?: { available?: boolean; reason?: string }
+  extensions?: {
+    available?: boolean
+    discoveredExtensions?: number
+    toolCount?: number
     reason?: string
   }
 }): RuntimeCapabilityManifest {
@@ -388,6 +475,54 @@ export function buildRuntimeCapabilityManifest(input: {
       ),
       scopes: config.memory.scopes,
       maxInjectedRecords: config.memory.maxInjectedRecords
+    },
+    lsp: {
+      ...providerCapabilityState(
+        config.lsp.enabled,
+        'LSP is disabled by config',
+        input.lsp?.available === true,
+        input.lsp?.reason ?? 'no LSP servers are available'
+      ),
+      configuredServers: Object.keys(config.lsp.servers).length,
+      connectedServers: input.lsp?.connectedServers ?? 0
+    },
+    browser: {
+      ...providerCapabilityState(
+        config.browser.enabled,
+        'browser use is disabled by config',
+        input.browser?.available === true,
+        input.browser?.reason ?? 'CDP browser transport is unavailable'
+      ),
+      transport: input.browser?.available ? 'cdp' : 'none'
+    },
+    computerUse: {
+      ...providerCapabilityState(
+        config.computerUse.enabled,
+        'computer use is disabled by config',
+        input.computerUse?.available === true,
+        input.computerUse?.reason ?? 'computer use backend is unavailable'
+      ),
+      backend: config.computerUse.backend
+    },
+    graph: {
+      ...providerCapabilityState(
+        config.graph.enabled,
+        'graph orchestration is disabled by config',
+        input.graph?.available === true,
+        input.graph?.reason ?? 'graph orchestration requires subagents'
+      ),
+      maxParallel: config.graph.maxParallel,
+      maxNodes: config.graph.maxNodes
+    },
+    extensions: {
+      ...providerCapabilityState(
+        config.extensions.enabled,
+        'extensions are disabled by config',
+        input.extensions?.available === true,
+        input.extensions?.reason ?? 'no trusted extensions are available'
+      ),
+      discoveredExtensions: input.extensions?.discoveredExtensions ?? 0,
+      toolCount: input.extensions?.toolCount ?? 0
     }
   })
 }

@@ -1,13 +1,23 @@
 import type { KunCapabilitiesConfig, WebCapabilityConfig } from '../../contracts/capabilities.js'
+import type { LookupFunction } from 'node:net'
+import { Agent } from 'undici'
 import type { WebFetchResult, WebProvider, WebSearchResult } from '../../ports/web-provider.js'
 import { sourceIdFor, UnavailableWebProvider } from '../../ports/web-provider.js'
 import type { CapabilityToolProvider } from './capability-registry.js'
 import { LocalToolHost } from './local-tool-host.js'
+import {
+  isPrivateNetworkHost,
+  normalizeNetworkHostname,
+  resolvePublicNetworkAddresses,
+  type ResolvedNetworkAddress
+} from './network-target-policy.js'
 
 const DEFAULT_WEB_TIMEOUT_MS = 15_000
 const DEFAULT_WEB_MAX_BYTES = 1_000_000
 const DEFAULT_SEARCH_LIMIT = 5
 const MAX_SEARCH_LIMIT = 10
+const MAX_WEB_REDIRECTS = 5
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 
 export type WebProviderDiagnostic = {
   id: string
@@ -134,7 +144,7 @@ function compositeSearchProvider(
 }
 
 function createFetchProvider(web: WebCapabilityConfig, nowIso: (() => string) | undefined): WebProvider {
-  const direct = new FetchWebProvider(nowIso)
+  const direct = new FetchWebProvider(web, nowIso)
   const fetchProvider = normalizeWebFetchProviderId(web.fetchProvider)
   if (!web.fetchFallbackEnabled || fetchProvider === 'direct') return direct
   if (fetchProvider === 'jina-reader') {
@@ -263,9 +273,11 @@ function createSearchTool(config: WebCapabilityConfig, provider: WebProvider) {
 
 class FetchWebProvider implements WebProvider {
   readonly id = 'fetch'
+  private readonly config: WebCapabilityConfig
   private readonly nowIso: () => string
 
-  constructor(nowIso: (() => string) | undefined) {
+  constructor(config: WebCapabilityConfig, nowIso: (() => string) | undefined) {
+    this.config = config
     this.nowIso = nowIso ?? (() => new Date().toISOString())
   }
 
@@ -279,11 +291,34 @@ class FetchWebProvider implements WebProvider {
     const timeout = setTimeout(() => controller.abort(), request.timeoutMs)
     const onAbort = () => controller.abort()
     request.signal.addEventListener('abort', onAbort, { once: true })
+    let dispatcher: Agent | null = null
     try {
-      const response = await fetch(request.url, {
-        signal: controller.signal,
-        headers: browserLikeFetchHeaders(request.url)
-      })
+      let currentUrl = new URL(request.url)
+      let response: Response | null = null
+      for (let redirects = 0; redirects <= MAX_WEB_REDIRECTS; redirects += 1) {
+        const addresses = await resolvePublicNetworkAddresses(currentUrl)
+        dispatcher = createPinnedNetworkDispatcher(addresses)
+        response = await fetch(currentUrl, {
+          signal: controller.signal,
+          redirect: 'manual',
+          headers: browserLikeFetchHeaders(currentUrl.href),
+          dispatcher
+        } as RequestInit & { dispatcher: Agent })
+        if (!REDIRECT_STATUSES.has(response.status)) break
+        const location = response.headers.get('location')
+        await response.body?.cancel().catch(() => undefined)
+        await dispatcher.close()
+        dispatcher = null
+        if (!location) throw new Error(`HTTP ${response.status} redirect is missing location`)
+        if (redirects >= MAX_WEB_REDIRECTS) {
+          throw new Error(`redirect limit exceeded (${MAX_WEB_REDIRECTS})`)
+        }
+        const nextUrl = new URL(location, currentUrl)
+        const policy = validateUrlPolicy(nextUrl.href, this.config)
+        if (!policy.ok) throw new Error(`redirect blocked by policy: ${policy.reason}`)
+        currentUrl = policy.url
+      }
+      if (!response) throw new Error('fetch did not produce a response')
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
       // Fast-fail if content-length is known and exceeds limit
@@ -327,7 +362,7 @@ class FetchWebProvider implements WebProvider {
       const contentType = response.headers.get('content-type') ?? undefined
       const raw = buffer.toString('utf8')
       const extracted = extractReadableText(raw, contentType)
-      const finalUrl = response.url || request.url
+      const finalUrl = response.url || currentUrl.href
       return {
         sourceId: sourceIdFor('fetch', finalUrl),
         url: request.url,
@@ -342,8 +377,29 @@ class FetchWebProvider implements WebProvider {
     } finally {
       clearTimeout(timeout)
       request.signal.removeEventListener('abort', onAbort)
+      await dispatcher?.close().catch(() => undefined)
     }
   }
+}
+
+function createPinnedNetworkDispatcher(addresses: readonly ResolvedNetworkAddress[]): Agent {
+  const lookup: LookupFunction = (_hostname, options, callback) => {
+    if (options.all) {
+      callback(null, addresses.map(({ address, family }) => ({ address, family })))
+      return
+    }
+    const selected = addresses[0]
+    if (!selected) {
+      callback(new Error('no validated network address is available'), '', 0)
+      return
+    }
+    callback(null, selected.address, selected.family)
+  }
+  return new Agent({
+    connect: {
+      lookup
+    }
+  })
 }
 
 class BackoffFetchWebProvider implements WebProvider {
@@ -778,7 +834,13 @@ function validateUrlPolicy(rawUrl: string, config: WebCapabilityConfig): { ok: t
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     return { ok: false, reason: 'only http and https URLs are allowed' }
   }
-  const hostname = url.hostname.toLowerCase()
+  if (url.username || url.password) {
+    return { ok: false, reason: 'URLs containing credentials are not allowed' }
+  }
+  const hostname = normalizeNetworkHostname(url.hostname)
+  if (isPrivateNetworkHost(hostname)) {
+    return { ok: false, reason: `private or local network targets are not allowed: ${hostname}` }
+  }
   if (config.denyDomains.some((domain) => domainMatches(hostname, domain))) {
     return { ok: false, reason: `domain is denied: ${hostname}` }
   }

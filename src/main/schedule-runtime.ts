@@ -656,9 +656,15 @@ export class ScheduleRuntime {
       const secret = settings.schedule.internal.secret.trim()
       if (secret) {
         const auth = req.headers.authorization ?? ''
-        const headerSecret = Array.isArray(req.headers['x-deepseek-gui-secret'])
-          ? req.headers['x-deepseek-gui-secret'][0]
-          : req.headers['x-deepseek-gui-secret']
+        const pengcodexHeader = req.headers['x-pengcodex-secret']
+        const legacyHeader = req.headers['x-deepseek-gui-secret']
+        const headerSecret = Array.isArray(pengcodexHeader)
+          ? pengcodexHeader[0]
+          : typeof pengcodexHeader === 'string'
+            ? pengcodexHeader
+            : Array.isArray(legacyHeader)
+              ? legacyHeader[0]
+              : legacyHeader
         if (auth !== `Bearer ${secret}` && headerSecret !== secret) {
           writeJson(res, 401, { ok: false, message: 'Unauthorized.' })
           return

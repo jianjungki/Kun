@@ -1,17 +1,17 @@
-# Kun cache optimization technical documentation
+# PengCodex Core cache optimization technical documentation
 
-This article records the cache optimization design, implementation location, and implementation of the current Kun runtime of DeepSeek GUI.
+This article records the cache optimization design, implementation location, and implementation of the current PengCodex Core runtime of PengCodex.
 Statistical caliber and subsequent evolution direction. The goal is not to simply "get the cache numbers high" but to keep the GUI and
 the local agent's request prefix long-term stable, verifiable, and observable across Code, Write, and Connect phone.
 
 ## Target
 
-Kun's cache optimization serves four goals:
+PengCodex Core's cache optimization serves four goals:
 
 - Make request prefixes sent to DeepSeek as byte stable as possible.
 - Make cache hit statistics consistent with DeepSeek native fields instead of relying on guesswork.
 - Let prefix drift and message history pollution be discovered during development.
-- Let the GUI only bear the responsibility of HTTP/SSE calls, and consolidate the caching discipline inside Kun.
+- Let the GUI only bear the responsibility of HTTP/SSE calls, and consolidate the caching discipline inside PengCodex Core.
 
 The higher-level product goal is to improve the ROI of every token.
 The user's context budget should become useful reasoning, code changes,
@@ -19,7 +19,7 @@ requirement clarification, and executable conclusions, instead of being
 spent on repeated tool schemas, oversized tool output, MCP catalogs,
 useless retries, or history noise.
 
-Kun therefore treats token optimization as a combined strategy, not a
+PengCodex Core therefore treats token optimization as a combined strategy, not a
 single cache-hit metric:
 
 - **Stable cacheable prefix**: system prompt, tool schemas, few-shots,
@@ -42,7 +42,7 @@ single cache-hit metric:
 
 ## General principles
 
-Kun borrowed Reasonix’s cache-first design, but adapted it to the GUI scenario:
+PengCodex Core borrowed Reasonix’s cache-first design, but adapted it to the GUI scenario:
 
 - The GUI does not spell prompt, and does not make cache judgments in renderer or main process.
 - `kun serve` is the only request exit, and cache-related strategies are placed inside the runtime.
@@ -53,13 +53,13 @@ Kun borrowed Reasonix’s cache-first design, but adapted it to the GUI scenario
 
 ### 1. Stable system prompt word
 
-Kun uses a separate stable system prompt word file:
+PengCodex Core uses a separate stable system prompt word file:
 
 - `kun/src/prompt/kun-system-prompt.ts`
 
 This prefix only carries long-term stable operation contracts, for example:
 
-- Kun identity
+- PengCodex Core identity
 - GUI call boundaries
 - Tool behavior constraints
 - Cache behavior constraints
@@ -77,7 +77,7 @@ The following content cannot enter the stable prefix:
 
 ### 2. ImmutablePrefix fingerprint
 
-Kun manages system prompts, tools, and pinned constraints through `ImmutablePrefix`
+PengCodex Core manages system prompts, tools, and pinned constraints through `ImmutablePrefix`
 and few-shots, and generate stable fingerprints for these:
 
 - `kun/src/cache/immutable-prefix.ts`
@@ -100,7 +100,7 @@ Throw drift errors directly to help locate them as early as possible.
 
 ### 3. Tool definition stabilization
 
-The toolset itself is part of the prompt prefix. Kun will do the following before sending a request:
+The toolset itself is part of the prompt prefix. PengCodex Core will do the following before sending a request:
 
 - Tools array sorted by `name`
 - `inputSchema` recursively canonicalize
@@ -121,7 +121,7 @@ The metadata directly locates which round started to disturb the cache prefix.
 
 In addition to prefix stability, historical messages themselves also affect caching and availability.
 
-Kun currently performs a shared model history repair on messages at the model request boundary:
+PengCodex Core currently performs a shared model history repair on messages at the model request boundary:
 
 - Orphan `tool_result` is not uploaded
 - The `tool_call` corresponding to result is missing and will not be uploaded.
@@ -140,7 +140,7 @@ Implementation location:
 - `kun/src/adapters/model/deepseek-compat-model-client.ts`
 - `kun/src/loop/agent-loop.ts`
 
-Kun will also do a layer of Reasonix-style history hygiene at model request boundaries:
+PengCodex Core will also do a layer of Reasonix-style history hygiene at model request boundaries:
 
 - Only the history sent to the model is compressed, and the complete tool results saved in the disk/session are not changed.
 - Extra large `tool_result` will retain head,
@@ -156,7 +156,7 @@ Implementation location:
 Repeat-loop guard is also enabled within the same turn:
 
 - The third identical `(toolName, arguments)` will be suppressed.
-- Kun will write an error `tool_result` to let the model converge to a narrower query or explain the reason.
+- PengCodex Core will write an error `tool_result` to let the model converge to a narrower query or explain the reason.
 - File change tools will clear previous read-only call records to avoid misjudgment of "reread after editing".
 
 Consecutive calls to the built-in read-only utility do conservative concurrency:
@@ -192,7 +192,7 @@ There are several direct benefits to doing this:
 
 ## Cache statistics caliber
 
-Kun's cache hit statistics preferentially use DeepSeek's native usage field:
+PengCodex Core's cache hit statistics preferentially use DeepSeek's native usage field:
 
 - `prompt_cache_hit_tokens`
 - `prompt_cache_miss_tokens`
@@ -228,7 +228,7 @@ The cumulative statistics use the same formula simultaneously to avoid inconsist
 - `kun/src/telemetry/usage-counter.ts`
 - `kun/src/domain/usage.ts`
 
-Kun will also use a single round of real `prompt_tokens` as the compaction pressure for the next request.
+PengCodex Core will also use a single round of real `prompt_tokens` as the compaction pressure for the next request.
 If the number of prompt tokens reported by the provider has reached the current model soft threshold, the next time
 The model step will trigger compaction first; this is more efficient than relying solely on local estimates of 4 characters/token.
 Close to the actual context pressure of DeepSeek, it can also maintain the proportion of hot prefixes before tool continuation.
@@ -266,7 +266,7 @@ There are currently three layers of verification:
 
 ### 1. Unit testing
 
-Kun has covered these key behaviors:
+PengCodex Core has covered these key behaviors:
 
 - Native `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens` are parsed first
 - tools canonical sorting and schema key stabilization
@@ -281,7 +281,7 @@ Main testing locations:
 
 ### 2. Runtime usage API
 
-The GUI uses a unified interface to read usage through Kun:
+The GUI uses a unified interface to read usage through PengCodex Core:
 
 - `GET /v1/usage?group_by=thread`
 - `GET /v1/usage?group_by=day`
@@ -293,7 +293,7 @@ Current product expectations are:
 
 ### 3. Real thread warm-up verification
 
-Kun actual measurement results on 2026-06-02:
+PengCodex Core actual measurement results on 2026-06-02:
 
 - 12 rounds of short messages: the hot hit after removing the cold start is about `94.7%`
 - 24 rounds of short messages after warm-up with the same stable prefix: overall about `95.2%`
@@ -304,7 +304,7 @@ Kun actual measurement results on 2026-06-02:
 
 ## Boundary to GUI
 
-This document emphasizes a production-level constraint: cache optimization belongs to Kun, not the GUI.
+This document emphasizes a production-level constraint: cache optimization belongs to PengCodex Core, not the GUI.
 
 The GUI side should only do:
 
@@ -354,5 +354,5 @@ Points worth learning from in the next stage:
 ## Related documents
 
 - Architecture overview: `docs/kun-architecture.md`
-- Kun Contributing Guide: `docs/kun-contributing.md`
-- Kun usage instructions: `kun/README.md`
+- PengCodex Core Contributing Guide: `docs/kun-contributing.md`
+- PengCodex Core usage instructions: `kun/README.md`

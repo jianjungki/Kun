@@ -7,6 +7,7 @@ import {
   type GuiUpdateConfigV1,
   type NotificationConfigV1,
   type ScheduleSettingsPatchV1,
+  type StudioSettingsPatchV1,
   type WriteSettingsPatchV1
 } from './app-settings-types'
 import { normalizeKeyboardShortcuts, type KeyboardShortcutsConfigV1 } from './keyboard-shortcuts'
@@ -18,9 +19,9 @@ import {
   migrateLegacyAppSettings
 } from './app-settings-kun'
 import { normalizeModelProviderSettings } from './app-settings-provider'
-import { normalizeDeepseekBaseUrl } from './app-settings-normalizers'
 import { normalizeClawSettings } from './app-settings-claw'
 import { normalizeScheduleSettings } from './app-settings-schedule'
+import { normalizeStudioSettings } from './app-settings-studio'
 import { normalizeWriteSettings } from './app-settings-write'
 
 export function normalizeAppSettings(settings: AppSettingsV1): AppSettingsV1 {
@@ -35,6 +36,7 @@ export function normalizeAppSettings(settings: AppSettingsV1): AppSettingsV1 {
     write?: WriteSettingsPatchV1
     claw?: ClawSettingsPatchV1
     schedule?: ScheduleSettingsPatchV1
+    studio?: StudioSettingsPatchV1
     guiUpdate?: Partial<GuiUpdateConfigV1>
   }
   const runtime = getKunRuntimeSettings(maybeSettings)
@@ -55,7 +57,7 @@ export function normalizeAppSettings(settings: AppSettingsV1): AppSettingsV1 {
     provider: normalizeModelProviderSettings(maybeSettings.provider),
     agents: kunSettingsEnvelope(mergeKunRuntimeSettings(defaultKunRuntimeSettings(), {
       ...runtime,
-      baseUrl: runtime.baseUrl.trim() ? normalizeDeepseekBaseUrl(runtime.baseUrl) : ''
+      baseUrl: runtime.baseUrl.trim()
     })),
     workspaceRoot: typeof maybeSettings.workspaceRoot === 'string' ? maybeSettings.workspaceRoot : '',
     log: {
@@ -70,6 +72,7 @@ export function normalizeAppSettings(settings: AppSettingsV1): AppSettingsV1 {
     write: normalizeWriteSettings(maybeSettings.write),
     claw: normalizeClawSettings(maybeSettings.claw),
     schedule: normalizeScheduleSettings(maybeSettings.schedule),
+    studio: normalizeStudioSettings(maybeSettings.studio),
     guiUpdate: {
       channel: normalizeGuiUpdateChannel(
         maybeSettings.guiUpdate?.channel ?? DEFAULT_GUI_UPDATE_CHANNEL
@@ -106,5 +109,10 @@ function shouldMigrateLegacySettings(settings: AppSettingsV1): boolean {
   const dataDir = typeof raw.agents.kun.dataDir === 'string'
     ? raw.agents.kun.dataDir.replace(/\\/g, '/').toLowerCase()
     : ''
-  return dataDir === '~/.deepseekgui/coreagent' || dataDir.endsWith('/.deepseekgui/coreagent')
+  return (
+    dataDir === '~/.deepseekgui/coreagent' ||
+    dataDir === '~/.deepseekgui/kun' ||
+    dataDir.endsWith('/.deepseekgui/coreagent') ||
+    dataDir.endsWith('/.deepseekgui/kun')
+  )
 }

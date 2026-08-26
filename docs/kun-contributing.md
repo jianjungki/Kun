@@ -1,4 +1,4 @@
-# Kun 贡献指南:架构、设计模式与代码组织思想
+# PengCodex Core 贡献指南:架构、设计模式与代码组织思想
 
 > 适用对象:任何想向 `kun/` 包贡献代码的工程师。
 > 阅读路径:第一次贡献可以按顺序读完全文;之后再回来查找具体章节。
@@ -9,7 +9,7 @@
 
 ## 1. 一句话总结
 
-**Kun 是一个严格执行 Ports & Adapters + Functional Core / Imperative
+**PengCodex Core 是一个严格执行 Ports & Adapters + Functional Core / Imperative
 Shell 的 TypeScript 包**。每个修改都应当:
 
 1. 先在 `contracts/` 用 zod 写 schema,导出类型;
@@ -27,7 +27,7 @@ Shell 的 TypeScript 包**。每个修改都应当:
 
 ## 2. 整体架构:六边形 (Hexagonal / Ports & Adapters)
 
-Kun 的目录本身就是六边形的物理布局:
+PengCodex Core 的目录本身就是六边形的物理布局:
 
 ```text
                        ┌─────────────────────────────┐
@@ -111,7 +111,7 @@ tests/contracts.test.ts   → 新增一个 variant 的 zod 解析测试
 
 ## 3. 核心设计模式
 
-Kun 同时使用了多个经典模式,它们互相加强而不是冲突。
+PengCodex Core 同时使用了多个经典模式,它们互相加强而不是冲突。
 
 ### 3.1 Ports & Adapters (Hexagonal)
 
@@ -606,7 +606,7 @@ cache 路由"。
 
 回到开头的"一句话总结":
 
-> **Kun 是一个严格执行 Ports & Adapters + Functional Core /
+> **PengCodex Core 是一个严格执行 Ports & Adapters + Functional Core /
 > Imperative Shell 的 TypeScript 包**。
 
 每个新 PR 都按这个图走:定义 contract → 描述 port → 写 functional

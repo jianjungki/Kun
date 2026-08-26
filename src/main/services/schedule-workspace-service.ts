@@ -8,7 +8,7 @@ import { pathExists } from './workspace-paths'
 
 const execFileAsync = promisify(execFile)
 const AGENTS_FILE_NAME = 'AGENTS.md'
-const DEFAULT_TASK_WORKTREE_DIR = '.deepseekgui/task-workspaces'
+const DEFAULT_TASK_WORKTREE_DIR = '.pengcodex/task-workspaces'
 const GLOBAL_RULE_CANDIDATES = [
   join(homedir(), AGENTS_FILE_NAME),
   join(homedir(), '.codex', AGENTS_FILE_NAME),
@@ -236,5 +236,5 @@ function shouldSkipSnapshotPath(path: string, sourceRoot: string, targetRoot: st
   const rel = normalized.slice(source.length).replace(/^\/+/, '')
   if (!rel) return false
   const first = rel.split('/')[0] ?? ''
-  return ['.git', 'node_modules', 'dist', 'out', 'build', '.next', 'coverage', '.deepseekgui/task-workspaces'].includes(first)
+  return ['.git', 'node_modules', 'dist', 'out', 'build', '.next', 'coverage', '.pengcodex', '.deepseekgui'].includes(first)
 }

@@ -127,9 +127,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           path: |
-            dist/DeepSeek-GUI-*-mac-*.dmg
-            dist/DeepSeek-GUI-*-mac-*.zip
-            dist/DeepSeek-GUI-*-mac-*.blockmap
+            dist/PengCodex-*-mac-*.dmg
+            dist/PengCodex-*-mac-*.zip
+            dist/PengCodex-*-mac-*.blockmap
             dist/latest-mac.yml
 
   build-windows:
@@ -167,8 +167,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           path: |
-            dist/DeepSeek-GUI-*-win-x64.exe
-            dist/DeepSeek-GUI-*-win-x64.exe.blockmap
+            dist/PengCodex-*-win-x64.exe
+            dist/PengCodex-*-win-x64.exe.blockmap
             dist/latest.yml
 
   build-linux:
@@ -211,8 +211,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           path: |
-            dist/DeepSeek-GUI-*-linux-x86_64.AppImage
-            dist/DeepSeek-GUI-*-linux-x86_64.AppImage.blockmap
+            dist/PengCodex-*-linux-x86_64.AppImage
+            dist/PengCodex-*-linux-x86_64.AppImage.blockmap
             dist/latest-linux.yml
 
   publish:
@@ -265,12 +265,12 @@ jobs:
         run: |
           set -euo pipefail
           required=(
-            "DeepSeek-GUI-*-mac-arm64.dmg"
-            "DeepSeek-GUI-*-mac-x64.dmg"
-            "DeepSeek-GUI-*-mac-arm64.zip"
-            "DeepSeek-GUI-*-mac-x64.zip"
-            "DeepSeek-GUI-*-win-x64.exe"
-            "DeepSeek-GUI-*-linux-x86_64.AppImage"
+            "PengCodex-*-mac-arm64.dmg"
+            "PengCodex-*-mac-x64.dmg"
+            "PengCodex-*-mac-arm64.zip"
+            "PengCodex-*-mac-x64.zip"
+            "PengCodex-*-win-x64.exe"
+            "PengCodex-*-linux-x86_64.AppImage"
             "latest-mac.yml"
             "latest.yml"
             "latest-linux.yml"
@@ -348,7 +348,7 @@ jobs:
           set -euo pipefail
           mapfile -d '' assets < <(
             find release-artifacts -type f \
-              \( -name 'DeepSeek-GUI-*' -o -name 'latest*.yml' \) \
+              \( -name 'PengCodex-*' -o -name 'latest*.yml' \) \
               -print0
           )
 

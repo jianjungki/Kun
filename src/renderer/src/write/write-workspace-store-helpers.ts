@@ -20,28 +20,34 @@ import { isWriteWorkspaceEntry } from '@shared/write-text-file'
 import i18n from '../i18n'
 import type { WriteEditorSelectionState } from '../components/write/WriteMarkdownEditor'
 import {
-  readBrowserStorageItem,
+  readBrowserStorageItemWithLegacy,
   removeBrowserStorageItem,
   writeBrowserStorageItem
 } from '../lib/browser-storage'
 import type { WritePreviewMode, WriteWorkspaceState } from './write-workspace-store-types'
 
-export const WRITE_PREVIEW_MODE_KEY = 'deepseekgui.write.preview-mode'
-export const WRITE_ASSISTANT_OPEN_KEY = 'deepseekgui.write.assistant-open'
-export const WRITE_ASSISTANT_MODEL_KEY = 'deepseekgui.write.assistant-model'
+export const WRITE_PREVIEW_MODE_KEY = 'pengcodex.write.preview-mode'
+const LEGACY_WRITE_PREVIEW_MODE_KEY = 'deepseekgui.write.preview-mode'
+export const WRITE_ASSISTANT_OPEN_KEY = 'pengcodex.write.assistant-open'
+const LEGACY_WRITE_ASSISTANT_OPEN_KEY = 'deepseekgui.write.assistant-open'
+export const WRITE_ASSISTANT_MODEL_KEY = 'pengcodex.write.assistant-model'
+const LEGACY_WRITE_ASSISTANT_MODEL_KEY = 'deepseekgui.write.assistant-model'
 const DEFAULT_WRITE_ASSISTANT_MODEL = 'auto'
 
 export function readStoredPreviewMode(): WritePreviewMode {
-  const raw = readBrowserStorageItem(WRITE_PREVIEW_MODE_KEY)
+  const raw = readBrowserStorageItemWithLegacy(WRITE_PREVIEW_MODE_KEY, [LEGACY_WRITE_PREVIEW_MODE_KEY])
   return raw === 'source' || raw === 'live' || raw === 'split' || raw === 'preview' ? raw : 'live'
 }
 
 export function readStoredAssistantOpen(): boolean {
-  return readBrowserStorageItem(WRITE_ASSISTANT_OPEN_KEY) !== '0'
+  return readBrowserStorageItemWithLegacy(WRITE_ASSISTANT_OPEN_KEY, [LEGACY_WRITE_ASSISTANT_OPEN_KEY]) !== '0'
 }
 
 export function readStoredAssistantModel(): string {
-  return readBrowserStorageItem(WRITE_ASSISTANT_MODEL_KEY)?.trim() || DEFAULT_WRITE_ASSISTANT_MODEL
+  return readBrowserStorageItemWithLegacy(
+    WRITE_ASSISTANT_MODEL_KEY,
+    [LEGACY_WRITE_ASSISTANT_MODEL_KEY]
+  )?.trim() || DEFAULT_WRITE_ASSISTANT_MODEL
 }
 
 export function normalizePath(value: string): string {
@@ -182,6 +188,10 @@ export function writeRelativeToWorkspace(workspaceRoot: string, filePath: string
 }
 
 export function activeFileStorageKey(workspaceRoot: string): string {
+  return `pengcodex.write.active-file:${normalizePath(workspaceRoot)}`
+}
+
+function legacyActiveFileStorageKey(workspaceRoot: string): string {
   return `deepseekgui.write.active-file:${normalizePath(workspaceRoot)}`
 }
 
@@ -195,7 +205,10 @@ export function rememberActiveFile(workspaceRoot: string, nextPath: string | nul
 }
 
 export function readRememberedActiveFile(workspaceRoot: string): string {
-  return readBrowserStorageItem(activeFileStorageKey(workspaceRoot)) ?? ''
+  return readBrowserStorageItemWithLegacy(
+    activeFileStorageKey(workspaceRoot),
+    [legacyActiveFileStorageKey(workspaceRoot)]
+  ) ?? ''
 }
 
 export function emptySelection(): WriteEditorSelectionState {

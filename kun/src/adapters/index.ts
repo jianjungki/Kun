@@ -1,4 +1,6 @@
 export * from './model/deepseek-compat-model-client.js'
+export * from './model/ai-sdk-model-client.js'
+export * from './model/ai-sdk-media-generation-client.js'
 export * from './tool/index.js'
 export * from './in-memory-event-bus.js'
 export * from './in-memory-approval-gate.js'

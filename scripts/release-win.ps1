@@ -158,8 +158,8 @@ Remove-Item -Recurse -Force -ErrorAction SilentlyContinue `
   (Join-Path $Root 'dist\mac-arm64'), `
   (Join-Path $Root 'dist\linux-unpacked')
 Remove-Item -Force -ErrorAction SilentlyContinue `
-  (Join-Path $Root 'dist\DeepSeek-GUI-*'), `
-  (Join-Path $Root 'dist\DeepSeek GUI-*'), `
+  (Join-Path $Root 'dist\PengCodex-*'), `
+  (Join-Path $Root 'dist\PengCodex-*'), `
   (Join-Path $Root 'dist\latest*.yml'), `
   (Join-Path $Root 'dist\*.blockmap')
 

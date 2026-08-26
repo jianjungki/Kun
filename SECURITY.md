@@ -1,6 +1,6 @@
 # Security Policy
 
-Thank you for helping keep DeepSeek GUI and its users safe.
+Thank you for helping keep PengCodex and its users safe.
 
 ## Supported Versions
 

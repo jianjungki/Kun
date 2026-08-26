@@ -12,6 +12,7 @@ import {
 import { defaultLsLocalToolOperations } from './builtin-tool-operations.js'
 import {
   collectPaths,
+  assertWorkspacePathBoundary,
   globToRegExp,
   isBinaryBuffer,
   listDirectoryWithOps,
@@ -44,6 +45,9 @@ export function createLsLocalTool(options: LsLocalToolOptions = {}): LocalTool {
       const rawPath = typeof args.path === 'string' && args.path.trim() ? args.path : '.'
       const limit = normalizePositiveInteger(args.limit, options.defaultLimit ?? DEFAULT_LIST_LIMIT)
       const { workspaceRoot: root, absolutePath, relativePath } = resolveWorkspacePath(rawPath, context)
+      if (!options.operations) {
+        await assertWorkspacePathBoundary(context.workspace, absolutePath, 'read')
+      }
       const targetStat = await statOp(absolutePath)
       if (!targetStat.isDirectory()) {
         return {
@@ -96,6 +100,9 @@ export function createFindLocalTool(options: FindLocalToolOptions = {}): LocalTo
       const rawPath = typeof args.path === 'string' && args.path.trim() ? args.path : '.'
       const limit = normalizePositiveInteger(args.limit, options.defaultLimit ?? DEFAULT_FIND_LIMIT)
       const { workspaceRoot: root, absolutePath, relativePath } = resolveWorkspacePath(rawPath, context)
+      if (!options.operations) {
+        await assertWorkspacePathBoundary(context.workspace, absolutePath, 'read')
+      }
       const matcher = globToRegExp(pattern.includes('/') ? pattern : `**/${pattern}`)
       if (options.operations?.glob) {
         const matches = await options.operations.glob({ pattern, path: absolutePath, limit })
@@ -160,6 +167,14 @@ export function createFindLocalTool(options: FindLocalToolOptions = {}): LocalTo
           .filter((entry) => matcher.test(entry.relative_path))
           .slice(0, limit)
       }
+      matches = (await Promise.all(matches.map(async (entry) => {
+        try {
+          await assertWorkspacePathBoundary(context.workspace, entry.path, 'read')
+          return entry
+        } catch {
+          return null
+        }
+      }))).filter((entry): entry is { path: string; relative_path: string } => entry !== null)
       return {
         output: {
           path: absolutePath,
@@ -214,6 +229,9 @@ export function createGrepLocalTool(options: GrepLocalToolOptions = {}): LocalTo
         : new RegExp(pattern, flags)
       const globMatcher = glob ? globToRegExp(glob.includes('/') ? glob : `**/${glob}`) : null
       const { workspaceRoot: root, absolutePath, relativePath } = resolveWorkspacePath(rawPath, context)
+      if (!options.operations) {
+        await assertWorkspacePathBoundary(context.workspace, absolutePath, 'read')
+      }
       if (options.operations?.search) {
         const matches = await options.operations.search({
           pattern,
@@ -258,6 +276,11 @@ export function createGrepLocalTool(options: GrepLocalToolOptions = {}): LocalTo
           const parsed = row.match(/^(.*?):(\d+):(.*)$/)
           if (!parsed) continue
           const candidatePath = resolve(parsed[1] ?? '')
+          try {
+            await assertWorkspacePathBoundary(context.workspace, candidatePath, 'read')
+          } catch {
+            continue
+          }
           const lineNumber = Number(parsed[2] ?? '0')
           const lineText = parsed[3] ?? ''
           const candidateRelative = normalizeToolPath(relative(root, candidatePath) || '.')
@@ -284,6 +307,11 @@ export function createGrepLocalTool(options: GrepLocalToolOptions = {}): LocalTo
         const candidates = await collectPaths(absolutePath, { includeDirectories: false, limit: limit * 8 })
         for (const candidatePath of candidates) {
           if (matches.length >= limit) break
+          try {
+            await assertWorkspacePathBoundary(context.workspace, candidatePath, 'read')
+          } catch {
+            continue
+          }
           const candidateRelative = normalizeToolPath(relative(root, candidatePath) || '.')
           if (globMatcher && !globMatcher.test(candidateRelative)) continue
           const buffer = await readFile(candidatePath)

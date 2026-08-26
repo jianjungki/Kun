@@ -1,10 +1,11 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join, posix } from 'node:path'
 import type { AppSettingsV1 } from '../shared/app-settings'
+import { atomicWriteFile } from '../../kun/src/adapters/file/atomic-write.js'
 
-const CLAW_SCHEDULE_MCP_MARKER_START = '# DeepSeek GUI plugin:mcp:claw-schedule START'
-const CLAW_SCHEDULE_MCP_MARKER_END = '# DeepSeek GUI plugin:mcp:claw-schedule END'
+const LEGACY_CLAW_SCHEDULE_MCP_MARKER_START = '# DeepSeek GUI plugin:mcp:claw-schedule START'
+const LEGACY_CLAW_SCHEDULE_MCP_MARKER_END = '# DeepSeek GUI plugin:mcp:claw-schedule END'
 export const GUI_SCHEDULE_MCP_SERVER_NAME = 'gui_schedule'
 const LEGACY_CLAW_SCHEDULE_MCP_SERVER_NAME = 'claw_schedule'
 const GUI_SCHEDULE_MCP_NODE_ENTRY = 'out/main/claw-schedule-mcp-node-entry.js'
@@ -168,14 +169,14 @@ function stripTomlTable(content: string, tableHeader: string): string {
 
 export function removeLegacyClawScheduleTomlConfig(content: string): string {
   const hasLegacyConfig =
-    content.includes(CLAW_SCHEDULE_MCP_MARKER_START) ||
+    content.includes(LEGACY_CLAW_SCHEDULE_MCP_MARKER_START) ||
     content.split('\n').some((line) => line.trim() === '[mcp_servers.claw_schedule]')
   if (!hasLegacyConfig) return content
 
   const withoutMarked = removeMarkedTomlBlock(
     content,
-    CLAW_SCHEDULE_MCP_MARKER_START,
-    CLAW_SCHEDULE_MCP_MARKER_END
+    LEGACY_CLAW_SCHEDULE_MCP_MARKER_START,
+    LEGACY_CLAW_SCHEDULE_MCP_MARKER_END
   )
   const withoutLegacyTable = stripTomlTable(withoutMarked, '[mcp_servers.claw_schedule]')
   return withoutLegacyTable ? `${withoutLegacyTable}\n` : ''
@@ -194,7 +195,7 @@ async function readJsonFile(path: string): Promise<unknown | null> {
     return JSON.parse(raw) as unknown
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Failed to parse Kun MCP config at ${path}: ${message}`, { cause: error })
+    throw new Error(`Failed to parse PengCodex Core MCP config at ${path}: ${message}`, { cause: error })
   }
 }
 
@@ -233,8 +234,11 @@ export async function syncClawScheduleMcpConfig(
   const next = buildSyncedClawScheduleMcpJson(current, settings, launch)
   const nextText = `${JSON.stringify(next, null, 2)}\n`
   const currentText = current === null ? '' : `${JSON.stringify(current, null, 2)}\n`
-  if (nextText === currentText) return
+  if (nextText === currentText) {
+    await chmod(mcpJsonPath, 0o600).catch(() => undefined)
+    return
+  }
 
   await mkdir(dirname(mcpJsonPath), { recursive: true })
-  await writeFile(mcpJsonPath, nextText, 'utf8')
+  await atomicWriteFile(mcpJsonPath, nextText, { mode: 0o600 })
 }

@@ -9,6 +9,7 @@ import {
   defaultKunRuntimeSettings,
   defaultModelProviderSettings,
   defaultScheduleSettings,
+  defaultStudioSettings,
   defaultWriteSettings,
   type AppSettingsV1
 } from '../shared/app-settings'
@@ -28,6 +29,7 @@ function settings(dataDir: string, model = 'settings-model'): AppSettingsV1 {
         {
           id: 'custom-provider',
           name: 'Custom Provider',
+          providerKind: 'openai',
           apiKey: 'sk-custom',
           baseUrl: 'https://custom.example/v1',
           endpointFormat: 'responses',
@@ -51,6 +53,7 @@ function settings(dataDir: string, model = 'settings-model'): AppSettingsV1 {
     write: defaultWriteSettings(),
     claw: defaultClawSettings(),
     schedule: defaultScheduleSettings(),
+    studio: defaultStudioSettings(),
     guiUpdate: { channel: 'stable' },
     codePromptPrefix: ''
   }

@@ -16,6 +16,7 @@ import {
   mergeScheduleSettings,
   defaultKunRuntimeSettings,
   defaultScheduleSettings,
+  defaultStudioSettings,
   defaultWriteSettings,
   defaultKeyboardShortcuts,
   isKunRuntimeInsecure,
@@ -50,6 +51,7 @@ function settings(): AppSettingsV1 {
     write: defaultWriteSettings(),
     claw: defaultClawSettings(),
     schedule: defaultScheduleSettings(),
+    studio: defaultStudioSettings(),
     guiUpdate: { channel: 'stable' },
     codePromptPrefix: ''
   }
@@ -123,6 +125,13 @@ describe('kun defaults', () => {
       autoThresholdToolCount: 24,
       topKDefault: 5,
       topKMax: 10
+    })
+  })
+
+  it('defaults the Skill registry to all discovered skills', () => {
+    expect(defaultKunRuntimeSettings().skillRegistry).toEqual({
+      activationMode: 'all',
+      activeSkillIds: []
     })
   })
 
@@ -260,14 +269,14 @@ describe('claw settings', () => {
 })
 
 describe('isKunRuntimeInsecure', () => {
-  it('treats an empty runtime token as effectively insecure', () => {
+  it('does not silently disable authentication when the runtime token is empty', () => {
     expect(
       isKunRuntimeInsecure({
         ...defaultKunRuntimeSettings(),
         insecure: false,
         runtimeToken: ''
       })
-    ).toBe(true)
+    ).toBe(false)
   })
 
   it('keeps auth enabled when a token exists and insecure is false', () => {
@@ -336,6 +345,31 @@ describe('mergeKunRuntimeSettings', () => {
     expect(next.mcpSearch.mode).toBe('search')
     expect(next.mcpSearch.topKDefault).toBe(3)
     expect(next.mcpSearch.topKMax).toBe(current.mcpSearch.topKMax)
+  })
+
+  it('normalizes Skill registry patches', () => {
+    const current = defaultKunRuntimeSettings()
+    const next = mergeKunRuntimeSettings(current, {
+      skillRegistry: {
+        activationMode: 'selected',
+        activeSkillIds: [' review ', '', 'bug-hunt', 'review']
+      }
+    })
+
+    expect(next.skillRegistry).toEqual({
+      activationMode: 'selected',
+      activeSkillIds: ['review', 'bug-hunt']
+    })
+
+    const reset = mergeKunRuntimeSettings(next, {
+      skillRegistry: {
+        activationMode: 'all'
+      }
+    })
+    expect(reset.skillRegistry).toEqual({
+      activationMode: 'all',
+      activeSkillIds: ['review', 'bug-hunt']
+    })
   })
 
   it('deep-merges advanced Kun settings', () => {
@@ -493,6 +527,7 @@ describe('legacy Kun defaults migration', () => {
           {
             id: 'custom-provider-2',
             name: 'Custom Provider',
+            providerKind: 'openai',
             apiKey: 'sk-custom',
             baseUrl: 'https://custom.example/v1',
             endpointFormat: 'responses',
@@ -514,6 +549,7 @@ describe('legacy Kun defaults migration', () => {
         expect.objectContaining({
           id: 'custom-provider-2',
           name: 'Custom Provider',
+          providerKind: 'openai',
           apiKey: 'sk-custom',
           baseUrl: 'https://custom.example/v1',
           endpointFormat: 'responses',
@@ -526,6 +562,7 @@ describe('legacy Kun defaults migration', () => {
       expect.objectContaining({
         apiKey: 'sk-custom',
         baseUrl: 'https://custom.example/v1',
+        providerKind: 'openai',
         endpointFormat: 'responses'
       })
     )

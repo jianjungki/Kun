@@ -9,6 +9,14 @@ import {
 import { modelCapabilitiesForModel } from '../src/loop/model-context-profile.js'
 import { DeterministicWebProvider } from '../src/ports/web-provider.js'
 import type { ToolHostContext } from '../src/ports/tool-host.js'
+import {
+  assertPublicNetworkUrl,
+  resolvePublicNetworkAddresses
+} from '../src/adapters/tool/network-target-policy.js'
+
+vi.mock('node:dns/promises', () => ({
+  lookup: vi.fn(async () => [{ address: '93.184.216.34', family: 4 }])
+}))
 
 function buildContext(): ToolHostContext {
   return {
@@ -194,6 +202,7 @@ describe('Web tool provider', () => {
         Referer: 'https://docs.example.test/',
         'User-Agent': expect.stringContaining('Mozilla/5.0')
       })
+      expect((init as RequestInit & { dispatcher?: unknown })?.dispatcher).toBeDefined()
       return new Response('Readable page', {
         headers: {
           'content-type': 'text/plain'
@@ -436,6 +445,117 @@ describe('Web tool provider', () => {
         telemetry: { policy: 'blocked' }
       })
     }
+  })
+
+  it('returns the validated address set used to pin the subsequent connection', async () => {
+    const resolver = vi.fn(async () => [
+      { address: '93.184.216.34', family: 4 as const },
+      { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 as const }
+    ])
+
+    await expect(resolvePublicNetworkAddresses(
+      new URL('https://docs.example.test/page'),
+      resolver
+    )).resolves.toEqual([
+      { address: '93.184.216.34', family: 4 },
+      { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 }
+    ])
+    expect(resolver).toHaveBeenCalledTimes(1)
+  })
+
+  it('blocks hostnames that resolve to private network addresses', async () => {
+    await expect(assertPublicNetworkUrl(
+      new URL('https://public-name.example/path'),
+      async () => [{ address: '127.0.0.1', family: 4 }]
+    )).rejects.toThrow(/resolves to a private or local network address/)
+  })
+
+  it('blocks special-use and IPv4-mapped IPv6 network targets', async () => {
+    for (const target of [
+      'http://198.51.100.1/',
+      'http://224.0.0.1/',
+      'http://[::ffff:7f00:1]/',
+      'http://[ff02::1]/'
+    ]) {
+      await expect(assertPublicNetworkUrl(new URL(target))).rejects.toThrow(
+        /private or local network targets are not allowed/
+      )
+    }
+  })
+
+  it('rejects local and private network fetch targets before contacting the provider', async () => {
+    let contacted = false
+    const provider = deterministicProvider()
+    provider.fetch = async (request) => {
+      contacted = true
+      return DeterministicWebProvider.prototype.fetch.call(provider, request)
+    }
+    const config = KunCapabilitiesConfig.parse({
+      web: {
+        enabled: true,
+        fetchEnabled: true
+      }
+    })
+    const host = new LocalToolHost({
+      registry: new CapabilityRegistry(buildWebToolProviders(config.web, { provider }).providers)
+    })
+
+    for (const url of ['http://localhost/admin', 'http://127.0.0.1/admin', 'http://[::1]/admin']) {
+      const result = await host.execute({
+        callId: `call_${url}`,
+        toolName: 'web_fetch',
+        arguments: { url }
+      }, buildContext())
+      expect(result.item).toMatchObject({
+        kind: 'tool_result',
+        isError: true,
+        output: {
+          error: {
+            code: 'policy_blocked',
+            message: expect.stringContaining('private or local network')
+          }
+        }
+      })
+    }
+    expect(contacted).toBe(false)
+  })
+
+  it('revalidates every direct-fetch redirect against the URL policy', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      calls.push(String(input))
+      return new Response(null, {
+        status: 302,
+        headers: { location: 'http://127.0.0.1/private' }
+      })
+    })
+    const config = KunCapabilitiesConfig.parse({
+      web: {
+        enabled: true,
+        fetchEnabled: true
+      }
+    })
+    const host = new LocalToolHost({
+      registry: new CapabilityRegistry(buildWebToolProviders(config.web).providers)
+    })
+
+    const result = await host.execute({
+      callId: 'call_redirect_private',
+      toolName: 'web_fetch',
+      arguments: { url: 'https://docs.example.test/redirect' }
+    }, buildContext())
+
+    expect(calls).toEqual(['https://docs.example.test/redirect'])
+    expect(result.item).toMatchObject({
+      kind: 'tool_result',
+      isError: true,
+      output: {
+        error: {
+          code: 'fetch_failed',
+          message: expect.stringContaining('redirect blocked by policy')
+        }
+      }
+    })
   })
 
   it('returns unavailable-provider errors for search without a search provider', async () => {

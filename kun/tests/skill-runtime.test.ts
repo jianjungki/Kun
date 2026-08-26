@@ -111,6 +111,32 @@ describe('SkillRuntime', () => {
     expect(resolution.instructions[0]).toContain('small instructions')
   })
 
+  it('filters discovered and explicit skills through enabledSkillIds', async () => {
+    await writeSkill('enabled', {
+      id: 'enabled',
+      name: 'Enabled',
+      triggers: { commands: ['/enabled'] }
+    }, 'enabled instructions')
+    await writeSkill('disabled', {
+      id: 'disabled',
+      name: 'Disabled',
+      triggers: { commands: ['/disabled'] }
+    }, 'disabled instructions')
+    const config = KunCapabilitiesConfig.parse({
+      skills: {
+        enabled: true,
+        roots: [root],
+        enabledSkillIds: ['enabled'],
+        legacySkillMd: true
+      }
+    })
+    const runtime = await SkillRuntime.create(config.skills)
+
+    expect(runtime.diagnostics().skills.map((skill) => skill.id)).toEqual(['enabled'])
+    expect(runtime.resolveTurn({ prompt: '/skill:disabled run', workspace: root }).activeSkillIds).toEqual([])
+    expect(runtime.resolveTurn({ prompt: '/skill:enabled run', workspace: root }).activeSkillIds).toEqual(['enabled'])
+  })
+
   it('injects allowed tool constraints and blocks omitted tools', async () => {
     await writeSkill('readonly', {
       id: 'readonly',

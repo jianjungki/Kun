@@ -5,6 +5,7 @@ import {
   defaultKunRuntimeSettings,
   defaultModelProviderSettings,
   defaultScheduleSettings,
+  defaultStudioSettings,
   defaultWriteSettings,
   resolveKunRuntimeSettings,
   type AppSettingsV1
@@ -23,6 +24,7 @@ function settings(): AppSettingsV1 {
         {
           id: 'custom',
           name: 'Custom Provider',
+          providerKind: 'anthropic',
           apiKey: 'sk-custom',
           baseUrl: 'https://custom.example/v1',
           endpointFormat: 'messages',
@@ -45,6 +47,7 @@ function settings(): AppSettingsV1 {
     write: defaultWriteSettings(),
     claw: defaultClawSettings(),
     schedule: defaultScheduleSettings(),
+    studio: defaultStudioSettings(),
     guiUpdate: { channel: 'stable' },
     codePromptPrefix: ''
   }
@@ -56,6 +59,7 @@ describe('model provider settings', () => {
 
     expect(runtime.apiKey).toBe('sk-custom')
     expect(runtime.baseUrl).toBe('https://custom.example/v1')
+    expect(runtime.providerKind).toBe('anthropic')
     expect(runtime.endpointFormat).toBe('messages')
   })
 })

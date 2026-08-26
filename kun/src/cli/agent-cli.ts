@@ -10,6 +10,7 @@ import type { ToolHostContext } from '../ports/tool-host.js'
 import { createKunServeRuntime } from '../server/runtime-factory.js'
 import type { ServerRuntime } from '../server/routes/server-runtime.js'
 import {
+  clearRuntimeSecretEnvironment,
   parseServeOptionsSafe,
   ServeExitCode
 } from './serve.js'
@@ -28,17 +29,19 @@ export type CliIo = {
   createRuntime?: (options: ServeOptions) => Promise<ServerRuntime>
 }
 
-export const KUN_CLI_USAGE = `kun <command> [options]
+export const PENGCODEX_CLI_USAGE = `pengcodex <command> [options]
 
 Commands:
   serve [options]            Start the local HTTP/SSE runtime
+  runtime status [options]   Inspect the discovered local runtime
+  extension <command>        Manage declarative command extensions
   run [options] <prompt>     Run one agent turn without the GUI
   chat [options]             Start a line-oriented terminal chat
   exec [options] <tool>      List or invoke tools directly
 
 Common options:
   --config <path>            JSON config file
-  --data-dir <path>          Root directory for Kun data
+  --data-dir <path>          Root directory for PengCodex Core data
   --workspace <path>         Workspace root for run/chat/exec
   --model <model>            Model id
   --approval-policy <p>      on-request | untrusted | never | auto | suggest
@@ -48,6 +51,9 @@ Exec options:
   --list-tools               Print available tools
   --args <json>              JSON object passed to the selected tool
 `
+
+/** @deprecated Use PENGCODEX_CLI_USAGE. */
+export const KUN_CLI_USAGE = PENGCODEX_CLI_USAGE
 
 const VALUE_FLAGS = new Set([
   'config',
@@ -72,10 +78,10 @@ const VALUE_FLAGS = new Set([
   'title'
 ])
 
-export type KunCliCommand = 'serve' | 'run' | 'chat' | 'exec' | 'help'
+export type PengCodexCliCommand = 'serve' | 'runtime' | 'extension' | 'run' | 'chat' | 'exec' | 'help'
 
-export function splitKunCliCommand(argv: readonly string[]): {
-  command: KunCliCommand
+export function splitPengCodexCliCommand(argv: readonly string[]): {
+  command: PengCodexCliCommand
   args: string[]
   error?: string
 } {
@@ -83,7 +89,14 @@ export function splitKunCliCommand(argv: readonly string[]): {
   if (!first || first === '--help' || first === '-h' || first === 'help') {
     return { command: 'help', args: [] }
   }
-  if (first === 'serve' || first === 'run' || first === 'chat' || first === 'exec') {
+  if (
+    first === 'serve' ||
+    first === 'runtime' ||
+    first === 'extension' ||
+    first === 'run' ||
+    first === 'chat' ||
+    first === 'exec'
+  ) {
     return { command: first, args: [...argv.slice(1)] }
   }
   if (first.startsWith('--')) {
@@ -92,8 +105,14 @@ export function splitKunCliCommand(argv: readonly string[]): {
   return { command: 'help', args: [], error: `unknown command: ${first}` }
 }
 
+/** @deprecated Use PengCodexCliCommand. */
+export type KunCliCommand = PengCodexCliCommand
+
+/** @deprecated Use splitPengCodexCliCommand. */
+export const splitKunCliCommand = splitPengCodexCliCommand
+
 export async function runAgentCommand(
-  command: Exclude<KunCliCommand, 'serve' | 'help'>,
+  command: Exclude<PengCodexCliCommand, 'serve' | 'runtime' | 'extension' | 'help'>,
   argv: readonly string[],
   io: CliIo
 ): Promise<number> {
@@ -109,10 +128,10 @@ export async function runAgentCommand(
 
 async function runOneShot(argv: readonly string[], io: CliIo): Promise<number> {
   const parsed = parseSharedOptions(argv, io)
-  if (!parsed.ok) return writeParseError(parsed, io, 'kun run')
+  if (!parsed.ok) return writeParseError(parsed, io, 'pengcodex run')
   const prompt = stringFlag(argv, ['prompt', 'p']) ?? positionals(argv).join(' ').trim()
   if (!prompt) {
-    io.stderr.write('kun run: missing prompt\n')
+    io.stderr.write('pengcodex run: missing prompt\n')
     return ServeExitCode.usage
   }
   let runtime: ServerRuntime | undefined
@@ -151,16 +170,16 @@ async function runOneShot(argv: readonly string[], io: CliIo): Promise<number> {
     }
     return status === 'completed' ? ServeExitCode.ok : ServeExitCode.runtime
   } catch (error) {
-    io.stderr.write(`kun run: ${errorMessage(error)}\n`)
+    io.stderr.write(`pengcodex run: ${errorMessage(error)}\n`)
     return ServeExitCode.runtime
   } finally {
-    await shutdownRuntime(runtime, io, 'kun run')
+    await shutdownRuntime(runtime, io, 'pengcodex run')
   }
 }
 
 async function runChat(argv: readonly string[], io: CliIo): Promise<number> {
   const parsed = parseSharedOptions(argv, io)
-  if (!parsed.ok) return writeParseError(parsed, io, 'kun chat')
+  if (!parsed.ok) return writeParseError(parsed, io, 'pengcodex chat')
   let runtime: ServerRuntime | undefined
   try {
     runtime = await createRuntime(parsed.options, io)
@@ -205,10 +224,10 @@ async function runChat(argv: readonly string[], io: CliIo): Promise<number> {
     }
     return ServeExitCode.ok
   } catch (error) {
-    io.stderr.write(`kun chat: ${errorMessage(error)}\n`)
+    io.stderr.write(`pengcodex chat: ${errorMessage(error)}\n`)
     return ServeExitCode.runtime
   } finally {
-    await shutdownRuntime(runtime, io, 'kun chat')
+    await shutdownRuntime(runtime, io, 'pengcodex chat')
   }
 }
 
@@ -244,12 +263,12 @@ async function runChatTurn(input: {
 
 async function runExec(argv: readonly string[], io: CliIo): Promise<number> {
   const parsed = parseSharedOptions(argv, io)
-  if (!parsed.ok) return writeParseError(parsed, io, 'kun exec')
+  if (!parsed.ok) return writeParseError(parsed, io, 'pengcodex exec')
   let runtime: ServerRuntime | undefined
   try {
     runtime = await createRuntime(parsed.options, io)
   } catch (error) {
-    io.stderr.write(`kun exec: ${errorMessage(error)}\n`)
+    io.stderr.write(`pengcodex exec: ${errorMessage(error)}\n`)
     return ServeExitCode.runtime
   }
   const host = runtime.toolHost ?? new LocalToolHost({ tools: buildDefaultLocalTools() })
@@ -263,13 +282,13 @@ async function runExec(argv: readonly string[], io: CliIo): Promise<number> {
     }
     const [toolName] = positionals(argv)
     if (!toolName) {
-      io.stderr.write('kun exec: missing tool name (use --list-tools to inspect tools)\n')
+      io.stderr.write('pengcodex exec: missing tool name (use --list-tools to inspect tools)\n')
       return ServeExitCode.usage
     }
     const argsText = stringFlag(argv, ['args']) ?? '{}'
     const args = parseJsonObject(argsText)
     if (!args.ok) {
-      io.stderr.write(`kun exec: ${args.message}\n`)
+      io.stderr.write(`pengcodex exec: ${args.message}\n`)
       return ServeExitCode.config
     }
     const result = await host.execute({
@@ -286,10 +305,10 @@ async function runExec(argv: readonly string[], io: CliIo): Promise<number> {
     }
     return result.item.kind === 'tool_result' && result.item.isError ? ServeExitCode.runtime : ServeExitCode.ok
   } catch (error) {
-    io.stderr.write(`kun exec: ${errorMessage(error)}\n`)
+    io.stderr.write(`pengcodex exec: ${errorMessage(error)}\n`)
     return ServeExitCode.runtime
   } finally {
-    await shutdownRuntime(runtime, io, 'kun exec')
+    await shutdownRuntime(runtime, io, 'pengcodex exec')
   }
 }
 
@@ -298,12 +317,14 @@ type SharedOptionsResult =
   | { ok: false; exitCode: number; message: string; issues?: unknown }
 
 function parseSharedOptions(argv: readonly string[], io: CliIo): SharedOptionsResult {
-  const parsed = parseServeOptionsSafe(argv, io.env ?? {})
+  const env = io.env ?? {}
+  const parsed = parseServeOptionsSafe(argv, env)
   if (!parsed.ok) return parsed
+  clearRuntimeSecretEnvironment(env)
   return {
     ok: true,
     options: parsed.options,
-    workspace: stringFlag(argv, ['workspace']) ?? io.env?.KUN_WORKSPACE ?? io.cwd?.() ?? process.cwd(),
+    workspace: stringFlag(argv, ['workspace']) ?? env.KUN_WORKSPACE ?? io.cwd?.() ?? process.cwd(),
     json: hasFlag(argv, 'json')
   }
 }

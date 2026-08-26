@@ -2,7 +2,7 @@
   "serve": {
     "host": "127.0.0.1",
     "port": 8899,
-    "dataDir": "~/.deepseekgui/kun",
+    "dataDir": "~/.pengcodex/runtime",
     "runtimeToken": "",
     "apiKey": "",
     "baseUrl": "https://api.deepseek.com/beta",
@@ -111,6 +111,46 @@
       "enabled": false,
       "scopes": ["user", "workspace", "project"],
       "maxInjectedRecords": 8
+    },
+    "lsp": {
+      "enabled": false,
+      "servers": {
+        "typescript": {
+          "enabled": true,
+          "command": "typescript-language-server",
+          "args": ["--stdio"],
+          "extensions": ["ts", "tsx", "js", "jsx"],
+          "timeoutMs": 10000
+        }
+      }
+    },
+    "browser": {
+      "enabled": false,
+      "headless": true,
+      "allowedDomains": [],
+      "actionTimeoutMs": 15000,
+      "maxActionsPerTurn": 40
+    },
+    "computerUse": {
+      "enabled": false,
+      "backend": "nutjs",
+      "maxScreenshotWidth": 1600,
+      "maxScreenshotHeight": 1200,
+      "actionDelayMs": 50
+    },
+    "graph": {
+      "enabled": false,
+      "maxParallel": 2,
+      "maxNodes": 12,
+      "failFast": false
+    },
+    "extensions": {
+      "enabled": false,
+      "roots": [],
+      "trustedWorkspaceRoots": [],
+      "allowExecutables": [],
+      "envAllowlist": [],
+      "maxOutputBytes": 1048576
     }
   }
 }

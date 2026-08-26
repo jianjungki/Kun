@@ -29,9 +29,10 @@ describe('DelegationRuntime', () => {
     const result = await runtime.runChild({
       parentThreadId: 'thr_1',
       parentTurnId: 'turn_1',
+      parentWorkspace: dir,
       label: 'research',
       prompt: 'Research A',
-      workspace: '/tmp/ws',
+      workspace: dir,
       signal: new AbortController().signal
     })
 
@@ -48,6 +49,7 @@ describe('DelegationRuntime', () => {
     await expect(disabled.runChild({
       parentThreadId: 'thr_1',
       parentTurnId: 'turn_1',
+      parentWorkspace: dir,
       prompt: 'x',
       signal: new AbortController().signal
     })).rejects.toThrow(/disabled/)
@@ -56,15 +58,59 @@ describe('DelegationRuntime', () => {
     await budgeted.runChild({
       parentThreadId: 'thr_1',
       parentTurnId: 'turn_1',
+      parentWorkspace: dir,
       prompt: 'first',
       signal: new AbortController().signal
     })
     await expect(budgeted.runChild({
       parentThreadId: 'thr_1',
       parentTurnId: 'turn_1',
+      parentWorkspace: dir,
       prompt: 'second',
       signal: new AbortController().signal
     })).rejects.toThrow(/budget/)
+  })
+
+  it('rejects child workspaces outside the parent workspace', async () => {
+    const runtime = createRuntime()
+    await expect(runtime.runChild({
+      parentThreadId: 'thr_1',
+      parentTurnId: 'turn_1',
+      parentWorkspace: dir,
+      prompt: 'escape',
+      workspace: join(dir, '..', 'outside-workspace'),
+      signal: new AbortController().signal
+    })).rejects.toThrow(/outside the workspace root/)
+  })
+
+  it('reserves parallel and child-run budgets atomically', async () => {
+    const parallel = createRuntime({
+      maxParallel: 1,
+      executor: async ({ prompt }) => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        return { summary: prompt }
+      }
+    })
+    const parallelResults = await Promise.allSettled(['first', 'second'].map((prompt) => parallel.runChild({
+      parentThreadId: 'thr_parallel',
+      parentTurnId: 'turn_1',
+      parentWorkspace: dir,
+      prompt,
+      signal: new AbortController().signal
+    })))
+    expect(parallelResults.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(parallelResults.filter((result) => result.status === 'rejected')).toHaveLength(1)
+
+    const childBudget = createRuntime({ maxParallel: 2, maxChildRuns: 1 })
+    const childResults = await Promise.allSettled(['first', 'second'].map((prompt) => childBudget.runChild({
+      parentThreadId: 'thr_budget',
+      parentTurnId: 'turn_1',
+      parentWorkspace: dir,
+      prompt,
+      signal: new AbortController().signal
+    })))
+    expect(childResults.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect(childResults.filter((result) => result.status === 'rejected')).toHaveLength(1)
   })
 
   it('executes delegate_task through the normal tool host', async () => {
@@ -79,7 +125,7 @@ describe('DelegationRuntime', () => {
     }, {
       threadId: 'thr_1',
       turnId: 'turn_1',
-      workspace: '/tmp/ws',
+      workspace: dir,
       approvalPolicy: 'auto',
       abortSignal: new AbortController().signal,
       awaitApproval: async () => 'allow'
@@ -103,7 +149,7 @@ describe('DelegationRuntime', () => {
     const context = {
       threadId: 'thr_1',
       turnId: 'turn_1',
-      workspace: '/tmp/ws',
+      workspace: dir,
       approvalPolicy: 'auto' as const,
       abortSignal: new AbortController().signal,
       awaitApproval: async () => 'allow' as const
@@ -129,6 +175,7 @@ describe('DelegationRuntime', () => {
     await runtime.runChild({
       parentThreadId: 'thr_1',
       parentTurnId: 'turn_1',
+      parentWorkspace: dir,
       label: 'research',
       prompt: 'first',
       model: 'deepseek-v4-flash',
@@ -137,6 +184,7 @@ describe('DelegationRuntime', () => {
     await runtime.runChild({
       parentThreadId: 'thr_1',
       parentTurnId: 'turn_1',
+      parentWorkspace: dir,
       label: 'research',
       prompt: 'second',
       model: 'deepseek-v4-flash',
@@ -162,6 +210,7 @@ describe('DelegationRuntime', () => {
     await expect(failed.runChild({
       parentThreadId: 'thr_1',
       parentTurnId: 'turn_1',
+      parentWorkspace: dir,
       prompt: 'fail',
       signal: new AbortController().signal
     })).resolves.toMatchObject({ status: 'failed', error: 'child failed' })
@@ -177,6 +226,7 @@ describe('DelegationRuntime', () => {
     await expect(aborted.runChild({
       parentThreadId: 'thr_1',
       parentTurnId: 'turn_1',
+      parentWorkspace: dir,
       prompt: 'abort',
       signal: controller.signal
     })).resolves.toMatchObject({ status: 'aborted' })
@@ -184,6 +234,7 @@ describe('DelegationRuntime', () => {
 
   function createRuntime(options: {
     enabled?: boolean
+    maxParallel?: number
     maxChildRuns?: number
     sessionStore?: InMemorySessionStore
     executor?: ConstructorParameters<typeof DelegationRuntime>[0]['executor']
@@ -200,7 +251,7 @@ describe('DelegationRuntime', () => {
     const config = KunCapabilitiesConfig.parse({
       subagents: {
         enabled: options.enabled ?? true,
-        maxParallel: 1,
+        maxParallel: options.maxParallel ?? 1,
         maxChildRuns: options.maxChildRuns ?? 3
       }
     }).subagents

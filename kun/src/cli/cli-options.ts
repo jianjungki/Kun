@@ -11,6 +11,7 @@ import {
   DEFAULT_STORAGE_CONFIG,
   ModelConfigSchema,
   RuntimeTuningConfigSchema,
+  StudioRuntimeConfigSchema,
   StorageConfigSchema,
   TokenEconomyConfigSchema
 } from '../config/kun-config.js'
@@ -23,6 +24,11 @@ import {
   MODEL_ENDPOINT_FORMATS,
   normalizeModelEndpointFormat
 } from '../contracts/model-endpoint-format.js'
+import {
+  DEFAULT_MODEL_PROVIDER_KIND,
+  MODEL_PROVIDER_KINDS,
+  normalizeModelProviderKind
+} from '../contracts/model-provider.js'
 
 export const DEFAULT_SERVE_PORT = 8899
 export const DEFAULT_SERVE_MODEL = DEFAULT_KUN_MODEL
@@ -43,6 +49,7 @@ export const ServeOptionsSchema = z.object({
   runtimeToken: z.string().default(''),
   apiKey: z.string().default(''),
   baseUrl: z.string().default('https://api.deepseek.com/beta'),
+  providerKind: z.preprocess(normalizeModelProviderKind, z.enum(MODEL_PROVIDER_KINDS)).default(DEFAULT_MODEL_PROVIDER_KIND),
   endpointFormat: z.preprocess(normalizeModelEndpointFormat, z.enum(MODEL_ENDPOINT_FORMATS)).default(DEFAULT_MODEL_ENDPOINT_FORMAT),
   model: z.string().default(DEFAULT_SERVE_MODEL),
   approvalPolicy: ApprovalPolicySchema.default(DEFAULT_APPROVAL_POLICY),
@@ -54,6 +61,7 @@ export const ServeOptionsSchema = z.object({
   models: ModelConfigSchema.optional(),
   contextCompaction: ContextCompactionConfigSchema.optional(),
   runtime: RuntimeTuningConfigSchema.optional(),
+  studio: StudioRuntimeConfigSchema.optional(),
   capabilities: KunCapabilitiesConfig.default(DEFAULT_KUN_CAPABILITIES_CONFIG)
 })
 export type ServeOptions = z.infer<typeof ServeOptionsSchema>
@@ -65,6 +73,7 @@ export const DEFAULT_SERVE_OPTIONS: ServeOptions = {
   runtimeToken: '',
   apiKey: '',
   baseUrl: 'https://api.deepseek.com/beta',
+  providerKind: DEFAULT_MODEL_PROVIDER_KIND,
   endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
   model: DEFAULT_SERVE_MODEL,
   approvalPolicy: DEFAULT_APPROVAL_POLICY,

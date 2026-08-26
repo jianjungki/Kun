@@ -7,6 +7,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  Images,
   Plus,
   RefreshCw,
   Settings,
@@ -36,10 +37,12 @@ import {
 import { WriteFileTree } from './WriteFileTree'
 
 type Props = {
-  activeView: 'chat' | 'write' | 'claw' | 'schedule'
+  activeView: 'chat' | 'write' | 'claw' | 'schedule' | 'studio'
   connectPhoneSidebarOpen: boolean
+  studioEnabled: boolean
   onCodeOpen: () => void
   onWriteOpen: () => void
+  onStudioOpen: () => void
   onOpenSettings: (section?: SettingsRouteSection) => void
   onToggleConnectPhone: () => void
   onToggleSidebar: () => void
@@ -56,8 +59,10 @@ type Translate = (key: string, opts?: Record<string, unknown>) => string
 export function WriteSidebar({
   activeView,
   connectPhoneSidebarOpen,
+  studioEnabled,
   onCodeOpen,
   onWriteOpen,
+  onStudioOpen,
   onOpenSettings,
   onToggleConnectPhone,
   onToggleSidebar
@@ -266,6 +271,14 @@ export function WriteSidebar({
           label={t('writeAddWorkspace')}
           onClick={() => void pickWriteWorkspace()}
         />
+        {studioEnabled ? (
+          <SidebarCommandRow
+            icon={<Images className="h-4 w-4" strokeWidth={1.75} />}
+            label={t('studio')}
+            onClick={onStudioOpen}
+            active={activeView === 'studio'}
+          />
+        ) : null}
       </div>
 
       <div className="ds-no-drag mx-1.5 my-3" />

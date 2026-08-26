@@ -8,6 +8,7 @@ import {
   mergeClawSettings,
   mergeModelProviderSettings,
   mergeScheduleSettings,
+  mergeStudioSettings,
   mergeWriteSettings,
   normalizeAppBehaviorSettings,
   normalizeClawSettings,
@@ -15,7 +16,9 @@ import {
   normalizeKeyboardShortcuts,
   normalizeModelProviderSettings,
   normalizeScheduleSettings,
+  normalizeStudioSettings,
   normalizeWriteSettings,
+  defaultStudioSettings,
   type AppSettingsPatch,
   type AppSettingsV1
 } from '@shared/app-settings'
@@ -24,7 +27,7 @@ import type { GuiUpdateInfo } from '@shared/gui-update'
 type RendererSettingsShape = AppSettingsPatch
 type SettingsPatch = AppSettingsPatch
 
-export const DEFAULT_WORKSPACE_ROOT = '~/.deepseekgui/default_workspace'
+export const DEFAULT_WORKSPACE_ROOT = '~/.pengcodex/default_workspace'
 
 export function splitSettingsList(raw: string): string[] {
   return raw
@@ -70,6 +73,7 @@ export function mergeSettings(current: AppSettingsV1, patch: SettingsPatch): App
     write: mergeWriteSettings(safeCurrent.write, patch.write),
     claw: mergeClawSettings(safeCurrent.claw, patch.claw),
     schedule: mergeScheduleSettings(safeCurrent.schedule, patch.schedule),
+    studio: mergeStudioSettings(safeCurrent.studio, patch.studio),
     guiUpdate: {
       ...safeCurrent.guiUpdate,
       ...(patch.guiUpdate ?? {})
@@ -107,6 +111,7 @@ export function coerceRendererSettings(settings: AppSettingsV1): AppSettingsV1 {
     write: normalizeWriteSettings(raw.write),
     claw: normalizeClawSettings(raw.claw),
     schedule: normalizeScheduleSettings(raw.schedule),
+    studio: normalizeStudioSettings(raw.studio ?? defaultStudioSettings()),
     guiUpdate: {
       channel: normalizeGuiUpdateChannel(raw.guiUpdate?.channel ?? DEFAULT_GUI_UPDATE_CHANNEL)
     },

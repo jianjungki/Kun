@@ -57,6 +57,7 @@ export type SkillTurnResolution = {
 export type SkillRuntimeDiagnostics = {
   enabled: boolean
   roots: string[]
+  enabledSkillIds: string[]
   skills: Array<{
     id: string
     name: string
@@ -101,7 +102,7 @@ export class SkillRuntime {
     config: SkillsCapabilityConfig | undefined,
     options: SkillRuntimeOptions = {}
   ): Promise<SkillRuntime> {
-    const normalized = config ?? { enabled: false, roots: [], legacySkillMd: true }
+    const normalized = config ?? { enabled: false, roots: [], enabledSkillIds: [], legacySkillMd: true }
     const resolvedOptions = {
       activeLimit: options.activeLimit ?? DEFAULT_ACTIVE_LIMIT,
       instructionBudgetBytes: options.instructionBudgetBytes ?? DEFAULT_INSTRUCTION_BUDGET_BYTES
@@ -154,6 +155,7 @@ export class SkillRuntime {
     return {
       enabled: this.config.enabled,
       roots: [...this.config.roots],
+      enabledSkillIds: [...this.config.enabledSkillIds],
       skills: this.skills.map((skill) => ({
         id: skill.id,
         name: skill.name,
@@ -233,7 +235,12 @@ async function discoverSkills(config: SkillsCapabilityConfig): Promise<{
     if (!unique.has(skill.id)) unique.set(skill.id, skill)
     else validationErrors.push({ root: skill.root, message: `duplicate Skill id: ${skill.id}` })
   }
-  return { skills: [...unique.values()].sort((a, b) => a.id.localeCompare(b.id)), validationErrors }
+  const enabledIds = new Set(config.enabledSkillIds.map((id) => id.trim()).filter(Boolean))
+  const discovered = [...unique.values()]
+  const filtered = enabledIds.size > 0
+    ? discovered.filter((skill) => enabledIds.has(skill.id))
+    : discovered
+  return { skills: filtered.sort((a, b) => a.id.localeCompare(b.id)), validationErrors }
 }
 
 async function packageCandidates(root: string): Promise<string[]> {

@@ -4,6 +4,7 @@ import type {
   ToolProviderPolicy
 } from '../../ports/tool-host.js'
 import type { LocalTool } from './local-tool-host.js'
+import { isToolAllowedInSandbox, sandboxBlockForTool } from './sandbox-policy.js'
 
 export type CapabilityToolRecord = {
   provider: ToolProviderPolicy
@@ -63,6 +64,7 @@ export class CapabilityRegistry {
     for (const record of this.tools.values()) {
       if (!this.canUseProvider(record.provider, context)) continue
       if (!this.canUseTool(record.tool.name, context)) continue
+      if (!isToolAllowedInSandbox(record.tool, context)) continue
       if (record.tool.shouldAdvertise) {
         if (!context || !record.tool.shouldAdvertise(context)) continue
       }
@@ -91,6 +93,10 @@ export class CapabilityRegistry {
     }
     if (!this.canUseTool(toolName, context)) {
       throw new Error(`tool ${toolName} is not advertised by active tool policy`)
+    }
+    const sandboxBlock = sandboxBlockForTool(record.tool, context)
+    if (sandboxBlock) {
+      throw new Error(`${sandboxBlock.code}: ${sandboxBlock.message}`)
     }
     if (record.tool.shouldAdvertise && !record.tool.shouldAdvertise(context)) {
       throw new Error(`tool ${toolName} is not advertised in this turn context`)

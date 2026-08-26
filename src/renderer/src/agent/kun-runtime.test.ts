@@ -5,6 +5,7 @@ import {
   defaultKunRuntimeSettings,
   defaultModelProviderSettings,
   defaultScheduleSettings,
+  defaultStudioSettings,
   defaultWriteSettings,
   type AppSettingsV1
 } from '@shared/app-settings'
@@ -31,6 +32,7 @@ function settings(): AppSettingsV1 {
     write: defaultWriteSettings(),
     claw: defaultClawSettings(),
     schedule: defaultScheduleSettings(),
+    studio: defaultStudioSettings(),
     guiUpdate: { channel: 'stable' },
     codePromptPrefix: ''
   }
@@ -59,10 +61,10 @@ afterEach(() => {
 })
 
 describe('KunRuntimeProvider', () => {
-  it('reports the kun id and Kun display name', () => {
+  it('reports the kun id and PengCodex Core display name', () => {
     const provider = new KunRuntimeProvider()
     expect(provider.id).toBe('kun')
-    expect(provider.displayName).toBe('Kun')
+    expect(provider.displayName).toBe('PengCodex Core')
   })
 
   it('exposes the local HTTP/SSE capabilities', () => {

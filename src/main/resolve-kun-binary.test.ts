@@ -100,6 +100,7 @@ describe('buildKunServeArgs', () => {
       port: 8899,
       dataDir: '/tmp/kun',
       baseUrl: 'https://api.deepseek.com/beta',
+      providerKind: 'openai-compatible',
       endpointFormat: 'responses',
       model: 'deepseek-chat',
       approvalPolicy: 'on-request',
@@ -110,6 +111,8 @@ describe('buildKunServeArgs', () => {
 
     expect(args).not.toContain('--api-key')
     expect(args).not.toContain('--runtime-token')
+    expect(args).toContain('--provider-kind')
+    expect(args).toContain('openai-compatible')
     expect(args).toContain('--endpoint-format')
     expect(args).toContain('responses')
     expect(args).toContain('--token-economy-mode')

@@ -18,7 +18,11 @@ import {
   savePreferredSkillRootId,
   type SkillRootId
 } from '../lib/skill-root-preference'
-import { readBrowserStorageItem, writeBrowserStorageItem } from '../lib/browser-storage'
+import {
+  readBrowserStorageItemWithLegacy,
+  writeBrowserStorageItem
+} from '../lib/browser-storage'
+import { RECOMMENDED_SKILLS, buildSkillContent } from '../lib/skill-registry'
 import { normalizeWorkspaceRoot } from '../lib/workspace-path'
 import { getProvider } from '../agent/registry'
 import type { SkillListItem } from '@shared/ds-gui-api'
@@ -64,12 +68,13 @@ type SkillRootOption = {
   available: boolean
 }
 
-const INSTALLED_STORAGE_KEY = 'deepseekgui.installedPlugins'
+const INSTALLED_STORAGE_KEY = 'pengcodex.installedPlugins'
+const LEGACY_INSTALLED_STORAGE_KEY = 'deepseekgui.installedPlugins'
 const GUI_SCHEDULE_MCP_SERVER_ID = 'gui_schedule'
 
 function loadInstalledPlugins(): string[] {
   try {
-    const raw = readBrowserStorageItem(INSTALLED_STORAGE_KEY)
+    const raw = readBrowserStorageItemWithLegacy(INSTALLED_STORAGE_KEY, [LEGACY_INSTALLED_STORAGE_KEY])
     if (!raw) return []
     const parsed = JSON.parse(raw) as unknown
     return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
@@ -247,19 +252,6 @@ export function mergeMcpJsonConfig(content: string, fragment: JsonRecord): { alr
   return { alreadyExists: false, text: `${JSON.stringify(next, null, 2)}\n` }
 }
 
-function buildSkillContent(id: string, title: string, description: string, instructions: string): string {
-  return [
-    '---',
-    `name: ${id}`,
-    `description: ${description}`,
-    '---',
-    '',
-    `# ${title}`,
-    '',
-    instructions
-  ].join('\n')
-}
-
 function itemTitle(item: MarketplaceItem, t: (key: string) => string): string {
   return item.title ?? (item.titleKey ? t(item.titleKey) : item.id)
 }
@@ -409,42 +401,14 @@ const RECOMMENDED_ITEMS: MarketplaceItem[] = [
         ['-y', '@upstash/context7-mcp@latest']
       )
   },
-  {
-    id: 'code-review',
-    kind: 'skill',
-    titleKey: 'pluginSkillReviewTitle',
-    descriptionKey: 'pluginSkillReviewDesc',
-    group: 'recommended',
-    skillInstructions:
-      'Use this skill when reviewing a code change. Prioritize correctness, regressions, security, performance, and missing tests. Lead with concrete findings and file references.'
-  },
-  {
-    id: 'frontend-polish',
-    kind: 'skill',
-    titleKey: 'pluginSkillFrontendTitle',
-    descriptionKey: 'pluginSkillFrontendDesc',
-    group: 'recommended',
-    skillInstructions:
-      'Use this skill when improving UI. Preserve the product style, check responsive states, avoid generic layouts, and verify the result visually before handing it back.'
-  },
-  {
-    id: 'bug-hunt',
-    kind: 'skill',
-    titleKey: 'pluginSkillBugTitle',
-    descriptionKey: 'pluginSkillBugDesc',
-    group: 'recommended',
-    skillInstructions:
-      'Use this skill when investigating bugs. Reproduce or narrow the symptom, trace the data flow, identify the smallest fix, and add focused verification where possible.'
-  },
-  {
-    id: 'release-notes',
-    kind: 'skill',
-    titleKey: 'pluginSkillReleaseTitle',
-    descriptionKey: 'pluginSkillReleaseDesc',
-    group: 'recommended',
-    skillInstructions:
-      'Use this skill when preparing release notes. Group user-facing changes by outcome, call out migrations or risks, and keep wording concise and scannable.'
-  }
+  ...RECOMMENDED_SKILLS.map((skill) => ({
+    id: skill.id,
+    kind: 'skill' as const,
+    titleKey: skill.titleKey,
+    descriptionKey: skill.descriptionKey,
+    group: 'recommended' as const,
+    skillInstructions: skill.instructions
+  }))
 ]
 
 export function PluginMarketplaceView(): ReactElement {

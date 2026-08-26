@@ -4,10 +4,11 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   runAgentCommand,
-  splitKunCliCommand,
+  splitPengCodexCliCommand,
   type CliIo
 } from '../src/cli/agent-cli.js'
 import { ServeExitCode } from '../src/cli/serve.js'
+import { runRuntimeCommand } from '../src/cli/runtime-cli.js'
 import type { ServeOptions } from '../src/cli/cli-options.js'
 import type { ServerRuntime } from '../src/server/routes/server-runtime.js'
 import type { TurnItem } from '../src/contracts/items.js'
@@ -109,11 +110,11 @@ function fakeRuntime(input: {
   }
 }
 
-describe('Kun agent CLI commands', () => {
+describe('PengCodex CLI commands', () => {
   let dataDir = ''
 
   beforeEach(async () => {
-    dataDir = await mkdtemp(join(tmpdir(), 'kun-cli-'))
+    dataDir = await mkdtemp(join(tmpdir(), 'pengcodex-cli-'))
   })
 
   afterEach(async () => {
@@ -121,15 +122,75 @@ describe('Kun agent CLI commands', () => {
   })
 
   it('splits explicit commands and keeps legacy serve flags compatible', () => {
-    expect(splitKunCliCommand(['run', 'hello'])).toEqual({ command: 'run', args: ['hello'] })
-    expect(splitKunCliCommand(['--port', '9999'])).toEqual({
+    expect(splitPengCodexCliCommand(['run', 'hello'])).toEqual({ command: 'run', args: ['hello'] })
+    expect(splitPengCodexCliCommand(['runtime', 'status'])).toEqual({
+      command: 'runtime',
+      args: ['status']
+    })
+    expect(splitPengCodexCliCommand(['--port', '9999'])).toEqual({
       command: 'serve',
       args: ['--port', '9999']
     })
-    expect(splitKunCliCommand(['nope']).error).toMatch(/unknown command/)
+    expect(splitPengCodexCliCommand(['nope']).error).toMatch(/unknown command/)
   })
 
-  it('lists tools from kun exec with JSON output', async () => {
+  it('emits machine-readable runtime status and a script-friendly exit code', async () => {
+    const c = capture()
+    const code = await runRuntimeCommand([
+      'status',
+      '--data-dir',
+      dataDir,
+      '--json'
+    ], {
+      stdout: c.io.stdout,
+      stderr: c.io.stderr,
+      env: c.io.env,
+      inspectStatus: async (requestedDataDir) => ({
+        status: 'running',
+        discoveryPath: join(requestedDataDir, 'runtime.json'),
+        runtime: {
+          version: 1,
+          instanceId: 'instance-one',
+          pid: 1234,
+          host: '127.0.0.1',
+          port: 8899,
+          startedAt: 'now',
+          dataDir: requestedDataDir
+        },
+        healthUrl: 'http://127.0.0.1:8899/health'
+      })
+    })
+
+    expect(code).toBe(ServeExitCode.ok)
+    expect(JSON.parse(c.stdout)).toMatchObject({
+      status: 'running',
+      runtime: { instanceId: 'instance-one', pid: 1234 }
+    })
+    expect(c.stderr).toBe('')
+  })
+
+  it('returns a non-zero runtime status when discovery is missing', async () => {
+    const c = capture()
+    const code = await runRuntimeCommand([
+      'status',
+      '--data-dir',
+      dataDir,
+      '--json'
+    ], {
+      stdout: c.io.stdout,
+      stderr: c.io.stderr,
+      env: c.io.env,
+      inspectStatus: async (requestedDataDir) => ({
+        status: 'missing',
+        discoveryPath: join(requestedDataDir, 'runtime.json')
+      })
+    })
+
+    expect(code).toBe(ServeExitCode.runtime)
+    expect(JSON.parse(c.stdout).status).toBe('missing')
+  })
+
+  it('lists tools from pengcodex exec with JSON output', async () => {
     const c = capture()
     const code = await runAgentCommand('exec', [
       '--data-dir',
@@ -150,7 +211,7 @@ describe('Kun agent CLI commands', () => {
     }
   })
 
-  it('invokes a direct tool through kun exec', async () => {
+  it('invokes a direct tool through pengcodex exec', async () => {
     const c = capture()
     const code = await runAgentCommand('exec', [
       '--data-dir',
@@ -171,7 +232,7 @@ describe('Kun agent CLI commands', () => {
     expect(item.output.echoed).toBe('hi')
   })
 
-  it('lists dynamic runtime tools from kun exec', async () => {
+  it('lists dynamic runtime tools from pengcodex exec', async () => {
     const webTool = LocalToolHost.defineTool({
       name: 'web_fetch',
       description: 'fetch',

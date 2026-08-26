@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { lstat, mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -181,6 +181,6 @@ export const defaultFindLocalToolOperations: FindLocalToolOperations = {}
 export const defaultGrepLocalToolOperations: GrepLocalToolOperations = {}
 
 export const defaultLsLocalToolOperations: LsLocalToolOperations = {
-  stat: (path: string) => stat(path),
+  stat: (path: string) => lstat(path),
   readdir: (path: string) => readdir(path, { withFileTypes: true }) as Promise<Array<{ name: string }>>
 }

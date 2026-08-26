@@ -43,6 +43,7 @@ import {
   memoryDiagnostics,
   updateMemory
 } from './memory.js'
+import { generateStudioImage, generateStudioVideo } from './studio.js'
 import { isAuthorized, bearerToken } from '../auth.js'
 import { ERRORS } from './runtime-error.js'
 import type { ServerRuntime } from './server-runtime.js'
@@ -57,6 +58,7 @@ import type { ServerRuntime } from './server-runtime.js'
  * - `GET /v1/attachments/diagnostics` (auth)
  * - `GET /v1/attachments/{id}` and `{id}/content` (auth)
  * - `GET/POST /v1/memory`, `PATCH/DELETE /v1/memory/{id}`, diagnostics (auth)
+ * - `POST /v1/studio/image` and `/v1/studio/video` (auth)
  * - `GET /v1/workspace/status` (auth)
  * - `GET/POST /v1/threads` (auth)
  * - `GET/PATCH/DELETE /v1/threads/{id}` (auth)
@@ -125,6 +127,14 @@ export function buildRouter(runtime: ServerRuntime): Router {
   router.add('DELETE', '/v1/memory/:id', async (request, ctx) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()
     return deleteMemory(runtime.memoryStore, ctx.params.id)
+  })
+  router.add('POST', '/v1/studio/image', async (request) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    return generateStudioImage(runtime, request)
+  })
+  router.add('POST', '/v1/studio/video', async (request) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    return generateStudioVideo(runtime, request)
   })
   router.add('GET', '/v1/workspace/status', async (request) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()

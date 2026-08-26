@@ -5,7 +5,7 @@
 # invented. Anything not in this block is editorial, not authoritative.
 
 schema_version: 1
-project: DeepSeek-GUI
+project: PengCodex
 single_runtime: kun
 themes: [light, dark, system]
 
@@ -286,8 +286,8 @@ i18n:
 
 # ---------- 13. Brand & voice ----------
 brand:
-  product_name: "DeepSeek GUI"
-  tagline: "把 Kun 的本地智能体能力带进桌面窗口"
+  product_name: "PengCodex"
+  tagline: "把 PengCodex Core 的本地智能体能力带进桌面窗口"
   hero_kw: [Code, Write, Connect phone]
   pillars:
     - "本地优先 (Local-first): settings, sessions, logs all on disk; model calls use your own DeepSeek API key."
@@ -311,19 +311,19 @@ a11y:
 
 # ---------- 15. Don't (anti-patterns enforced by the codebase) ----------
 dont:
-  - "Use a second live agent runtime — Kun is the only one."
+  - "Use a second live agent runtime — PengCodex Core is the only one."
   - "Add AgentSwitcher / ConnectionStatusBar / RuntimeDiagnosticsDialog."
   - "Add CodeWhale/Reasonix adapters, process managers, RPC bridges, updaters, importers."
   - "Add a design/drawing starter card in the core workbench."
   - "Add /usage or /runtime slash command that opens a runtime control panel."
-  - "Save settings under agents.codewhale or agents.reasonix; only agents.kun."
+  - "Save settings under agents.codewhale or agents.reasonix; only the compatibility agents.kun settings envelope."
   - "Use emoji in production copy or as functional UI affordance."
   - "Apply a tint or hue that isn't in the palette above."
   - "Use a font outside the three declared families."
   - "Use a border radius smaller than 4px on a clickable surface."
 ---
 
-# DeepSeek GUI — DESIGN.md
+# PengCodex — DESIGN.md
 
 > 单一权威设计文档。所有屏幕、所有组件、所有视觉决策,都从这里出。
 
@@ -353,9 +353,10 @@ the frontmatter wins, and the markdown needs an update.
 
 ## 1. Project at a glance
 
-DeepSeek GUI is a local desktop workbench for the **Kun**
-runtime. The desktop shell is Electron; the runtime is a TypeScript
-package that speaks HTTP/SSE; the renderer is React 19 + Zustand 5;
+PengCodex is a local desktop workbench for **PengCodex Core**.
+The desktop shell is Electron; the runtime is a TypeScript
+package that speaks HTTP/SSE and still keeps `kun` as an internal
+compatibility codename; the renderer is React 19 + Zustand 5;
 the visual system is TailwindCSS 3 with a hand-built token layer on
 top.
 
@@ -371,7 +372,7 @@ human staying in the loop on every mutating call.
 | **Write** | A long-form writing space: Markdown files, FIM completion, selection-scoped inline agent. |
 | **Connect phone** | Background automation: Feishu / Lark channels, webhook / relay, scheduled tasks. Internal route and storage names still use `claw` for compatibility. |
 
-All product surfaces share the same Kun HTTP/SSE boundary, the same
+All product surfaces share the same PengCodex Core HTTP/SSE boundary, the same
 settings (API key, base URL, model), and the same visual system.
 
 ---
@@ -396,7 +397,7 @@ already built. New screens must follow them, not re-interpret them.
    important, it goes in Settings, not in the main canvas.
 4. **The renderer maps HTTP, it does not implement agent logic.**
    Approvals, steering, compaction, fork, resume, usage — all
-   come from Kun endpoints, never re-implemented in React.
+   come from PengCodex Core endpoints, never re-implemented in React.
 5. **Stable visual identity, not visual novelty.** A new screen
    should look like a sibling of an existing one, not a fresh
    experiment. New components earn their place by replacing
@@ -588,7 +589,7 @@ containing many cells. Do not animate the composer.
 
 ### 3.9 Layout grammar
 
-Every screen in DeepSeek GUI follows the same macro-grammar:
+Every screen in PengCodex follows the same macro-grammar:
 
 - **Topbar**: a translucent strip with the back button, session
   title, mode switcher, and right-side action cluster. The topbar
@@ -619,10 +620,10 @@ first.
   Write, and Connect phone"), second person for the user. No emoji. No
   marketing language. Error messages are full sentences ending in
   punctuation; never a raw stack trace.
-- The product name is "DeepSeek GUI". The runtime is "Kun".
+- The product name is "PengCodex". The runtime is "PengCodex Core".
   The main workbenches are "Code" and "Write"; the phone/IM surface is
   "Connect phone" in English and "连接手机" in zh copy. Internal code may
-  still say `claw`, but production copy should not expose it as the product name.
+  still say `kun` or `claw`, but production copy should not expose either as the product name.
 
 ### 3.11 Theme switching
 
@@ -677,7 +678,7 @@ If any box is unchecked, fix it before merging.
 │       │                                                      │
 │       │ spawn child process + HTTP/SSE                       │
 │       ▼                                                      │
-│ Kun (TypeScript package)                              │
+│ PengCodex Core (TypeScript package; internal kun/)    │
 │  serve --host 127.0.0.1 --port 7878                          │
 │  /health · /v1/* · SSE /v1/threads/{id}/events              │
 │  cache-first AgentLoop · ports & adapters · append-only log  │
@@ -699,15 +700,15 @@ Three lessons baked into this shape:
    workspace
    files, external editors, and Write export/completion) that the
    renderer can ask for.
-3. Kun **is** the agent. Loop, tool host, stores, model
+3. PengCodex Core **is** the agent. Loop, tool host, stores, model
    client, server — all in one process, behind one HTTP/SSE
    boundary.
 
 ---
 
-## 5. Core runtime: Kun
+## 5. Core runtime: PengCodex Core
 
-The Kun package (`kun/`) is the single active agent
+The PengCodex Core package (`kun/`) is the single active agent
 runtime. It is a TypeScript ESM package that ships its own HTTP
 server and is built before the Electron app.
 
@@ -729,13 +730,13 @@ kun/src/
   telemetry/       # Usage counter, cache telemetry
   server/          # HTTP server, router, auth, SSE, response helpers,
                    # runtime-factory, route handlers
-  prompt/          # System prompt for the Kun identity
+  prompt/          # System prompt for the PengCodex Core identity
   shared/          # Shared types with the GUI
 ```
 
 ### 5.2 Hexagonal shape
 
-Kun is structured as **ports & adapters**:
+PengCodex Core is structured as **ports & adapters**:
 
 - `contracts/` — the boundary. Zod schemas describe every HTTP/SSE
   DTO. This is what the GUI imports indirectly through its mapper
@@ -788,7 +789,7 @@ telemetry. The principles:
   pinned constraints from the immutable prefix. Soft threshold
   16k tokens, hard threshold 24k tokens.
 - **Tool pair healing.** Before sending history to the model,
-  Kun drops orphan `tool_result`s and tool calls with
+  PengCodex Core drops orphan `tool_result`s and tool calls with
   missing results, to avoid 400/retry storms.
 
 Cache hit rate is reported as `hit / (hit + miss)` using
@@ -890,7 +891,7 @@ next replay skips them).
 
 ### 6.1 Process roles
 
-- **Main** (`src/main/`) — Node process. Owns the Kun
+- **Main** (`src/main/`) — Node process. Owns the PengCodex Core
   child process, settings store, updater, Connect phone runtime,
   file/git/editor helpers, Write services, IPC handlers, logger,
   GUI updater, macOS/Windows code-signing glue.
@@ -923,7 +924,7 @@ src/
     src/
       App.tsx                       # Suspense shell
       AppShell.tsx                  # routes Workbench / Settings / InitialSetup
-      agent/                        # AgentProvider interface + Kun impl
+      agent/                        # AgentProvider interface + PengCodex Core impl
       components/                   # Workbench, Settings, ChangeInspector, …
       hooks/
       lib/                          # formatters, helpers, plan store, etc.
@@ -939,7 +940,7 @@ src/
 on the system. It includes:
 
 - `runtimeRequest(path, method, body)` — generic JSON request to
-  Kun.
+  PengCodex Core.
 - `startSse(threadId, sinceSeq, streamId)` / `stopSse` /
   `onSseEvent` — SSE subscription for a thread.
 - `getSettings` / `setSettings` — typed settings I/O.
@@ -969,7 +970,7 @@ and validated at the IPC boundary by Zod schemas in
 
 ### 6.4 The runtime adapter
 
-The main process owns the Kun child process through a
+The main process owns the PengCodex Core child process through a
 `LocalHttpRuntimeAdapter`:
 
 - `kunRuntimeAdapter.resolveExecutable(settings)` —
@@ -1040,7 +1041,7 @@ Persistence is layered:
   fork registry).
 - `electron-store` (main) — settings, Connect phone config (internal Claw key), write
   workspace config.
-- `~/.deepseekgui/kun` (Kun) — threads,
+- `~/.pengcodex/runtime` (PengCodex Core) — threads,
   events, sessions, usage.
 
 ### 7.3 The AgentProvider interface
@@ -1066,7 +1067,7 @@ surface, and optional right inspector, and lazy-loads the heavy panels
 (`ChangeInspector`, `TodoPanel`, `PlanPanel`, `WorkspaceFilePreviewPanel`,
 `DevBrowserPanel`, `PluginMarketplaceView`, `ScheduleTasksView`)
 via `React.lazy`. Panel sizes and the selected right-panel mode are persisted to `localStorage`
-under `deepseekgui.layout.*` keys.
+under `pengcodex.layout.*` keys, with migration reads for legacy `deepseekgui.layout.*` keys.
 
 The chat timeline is a virtualized list of `ChatBlock`s. Each
 block kind has its own renderer:
@@ -1093,13 +1094,13 @@ only which renderer and local workflow state the store pulls in.
 - **Code** — default mode, full agent flow, workspace roots,
   todo panel, changes inspector, plan panel, file preview, and dev browser.
 - **Write** — write-thread registry isolates Write sessions
-  from Code / Connect phone sessions. Uses the same Kun but a
+  from Code / Connect phone sessions. Uses the same PengCodex Core but a
   separate `WRITE_ASSISTANT_THREAD_TITLE` namespace. Inline
   completion and selected-text agent go through dedicated
   main-process services.
 - **Connect phone** — internal `claw` channel registry. Each IM channel has its
   own thread id, model, and workspace root. Runs through
-  `ClawRuntime` (main process), which calls Kun over
+  `ClawRuntime` (main process), which calls PengCodex Core over
   HTTP just like the renderer does.
 
 ---
@@ -1112,17 +1113,17 @@ only which renderer and local workflow state the store pulls in.
 | Session list / workbench layout | `localStorage` | JSON | Renderer |
 | Write thread registry | `localStorage` | JSON | Renderer |
 | Connect phone channels | OS app-data dir | JSON | `JsonSettingsStore` |
-| Threads / turns / events | `~/.deepseekgui/kun` | JSON + JSONL | Kun |
-| Usage counters | Kun data dir | JSON | Kun |
-| Skill / MCP files | Kun data dir + workspace | Markdown / JSON | Kun + renderer |
+| Threads / turns / events | `~/.pengcodex/runtime` | JSON + JSONL | PengCodex Core |
+| Usage counters | PengCodex Core data dir | JSON | PengCodex Core |
+| Skill / MCP files | PengCodex Core data dir + workspace | Markdown / JSON | PengCodex Core + renderer |
 | GUI logs | OS app-data dir / `log/` | NDJSON | `logger.ts` |
 | Inline completion debug | OS app-data dir | NDJSON | `write-inline-completion-service.ts` |
 
 Default OS app-data paths:
 
-- macOS: `~/Library/Application Support/DeepSeek GUI`
-- Windows: `%APPDATA%\DeepSeek GUI`
-- Linux: `~/.config/DeepSeek GUI`
+- macOS: `~/Library/Application Support/PengCodex`
+- Windows: `%APPDATA%\PengCodex`
+- Linux: `~/.config/PengCodex`
 
 Uninstalling the app does not remove app data. Documented in
 the README and respected by the install script.
@@ -1184,13 +1185,13 @@ compaction block inline with a "show replaced" detail.
 
 ### 9.5 Connect phone automation
 
-- `ClawRuntime` (main process) creates and reuses Kun
+- `ClawRuntime` (main process) creates and reuses PengCodex Core
   threads for each IM channel and each scheduled task.
 - Feishu / Lark integration uses `@larksuiteoapi/node-sdk`.
   Install is device-flow QR code; the renderer polls
   `claw:im-install:poll` until authorized.
 - Webhook / relay is a small HTTP server in `ClawRuntime` that
-  POSTs inbound webhooks into a Kun thread.
+  POSTs inbound webhooks into a PengCodex Core thread.
 - Scheduled tasks are detected from natural-language Connect phone
   prompts (`claw-scheduled-task-detector.ts`) and stored under
   `claw.scheduledTasks` in settings.
@@ -1246,7 +1247,7 @@ postmortem timing.
 These are enforced by `docs/AGENTS.md` and reflect real product
 decisions. New work must respect them.
 
-- **One live agent runtime: Kun.** No second live
+- **One live agent runtime: PengCodex Core.** No second live
   provider, no provider switcher, no runtime diagnostics
   panel, no legacy CodeWhale / Reasonix process path.
 - **No UI surface for runtime internals.** No AgentSwitcher,
@@ -1257,7 +1258,7 @@ decisions. New work must respect them.
   may only appear in migration.
 - **Renderer does not implement agent logic.** Approvals,
   steering, compaction, fork, resume, usage — all come from
-  Kun endpoints, never re-implemented in React.
+  PengCodex Core endpoints, never re-implemented in React.
 - **No new drawing / design starter card** in the core
   workbench.
 - **No emoji in production copy or as functional UI
@@ -1313,9 +1314,9 @@ Manual smoke (full list in `docs/AGENTS.md`):
 - Code: create thread, stream reply, approve / deny, interrupt.
 - Write: open workspace, request inline completion, run
   selected-text agent.
-- Connect phone: save settings, run a manual task through a Kun
+- Connect phone: save settings, run a manual task through a PengCodex Core
   thread.
-- Settings → Agents: shows only Kun.
+- Settings -> Agents: shows only PengCodex Core.
 - Cache telemetry on a hot thread should stay ≥ 90% hit.
 
 If any check fails, the change is not ready.

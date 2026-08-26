@@ -30,16 +30,16 @@ describe('MessageTimeline initial heatmap empty hero routing', () => {
     await i18n.changeLanguage('en')
   })
 
-  it('shows the Kun heatmap for eligible initial chat states', () => {
+  it('shows the PengCodex Core heatmap for eligible initial chat states', () => {
     const html = renderHero()
 
-    expect(html).toContain('Kun usage')
+    expect(html).toContain('PengCodex Core usage')
     expect(html).not.toContain('Start a new conversation')
   })
 
   it('keeps offline, missing-workspace, and Claw empty states gated away from the heatmap', () => {
     const offlineHtml = renderHero({ ready: false })
-    expect(offlineHtml).toContain('DeepSeek-GUI is waking the local agent')
+    expect(offlineHtml).toContain('PengCodex is waking the local agent')
     expect(offlineHtml).toContain('ds-runtime-wake-logo')
     expect(offlineHtml).toContain('ds-work-logo')
     expect(renderHero({ hasWorkspace: false })).toContain('Choose working directory')
@@ -47,7 +47,7 @@ describe('MessageTimeline initial heatmap empty hero routing', () => {
     expect(clawHtml).toContain('Start a conversation with this assistant')
     expect(clawHtml).toContain('ds-claw-empty-whale-logo')
     expect(clawHtml).toContain('ds-work-logo')
-    expect(clawHtml).not.toContain('Kun usage')
+    expect(clawHtml).not.toContain('PengCodex Core usage')
   })
 
   it('shows the runtime error in the offline hero when one is available', () => {

@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import { z } from 'zod'
+import { assertWorkspacePathBoundary, workspaceRoot } from '../adapters/tool/builtin-tool-utils.js'
 import type { SubagentsCapabilityConfig } from '../contracts/capabilities.js'
 import type { RuntimeEventRecorder } from '../services/runtime-event-recorder.js'
 import type { UsageSnapshot } from '../contracts/usage.js'
@@ -95,6 +96,7 @@ export class FileDelegationStore {
 export class DelegationRuntime {
   private active = 0
   private childSeq = 0
+  private admissionTail: Promise<void> = Promise.resolve()
 
   constructor(private readonly options: {
     config: SubagentsCapabilityConfig
@@ -109,6 +111,7 @@ export class DelegationRuntime {
   async runChild(input: {
     parentThreadId: string
     parentTurnId: string
+    parentWorkspace: string
     label?: string
     prompt: string
     workspace?: string
@@ -116,35 +119,44 @@ export class DelegationRuntime {
     signal: AbortSignal
   }): Promise<ChildRunRecord> {
     if (!this.options.config.enabled) throw new Error('delegation is disabled by config')
-    if (this.active >= this.options.config.maxParallel) throw new Error('delegation parallel budget exhausted')
-    const existing = await this.options.store.list(input.parentThreadId)
-    if (existing.length >= this.options.config.maxChildRuns) throw new Error('delegation child-run budget exhausted')
-    const now = this.now()
-    const id = this.options.idGenerator?.() ?? `child_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-    let record = ChildRunRecord.parse({
-      id,
-      parentThreadId: input.parentThreadId,
-      parentTurnId: input.parentTurnId,
-      label: input.label,
-      prompt: input.prompt,
-      workspace: input.workspace,
-      model: input.model,
-      status: 'running',
-      createdAt: now,
-      updatedAt: now
+    const workspace = await resolveDelegatedWorkspace(input.parentWorkspace, input.workspace)
+    let record = await this.withAdmission(async () => {
+      if (this.active >= this.options.config.maxParallel) throw new Error('delegation parallel budget exhausted')
+      const existing = await this.options.store.list(input.parentThreadId)
+      if (existing.length >= this.options.config.maxChildRuns) throw new Error('delegation child-run budget exhausted')
+      const now = this.now()
+      const id = this.options.idGenerator?.() ?? `child_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+      const admitted = ChildRunRecord.parse({
+        id,
+        parentThreadId: input.parentThreadId,
+        parentTurnId: input.parentTurnId,
+        label: input.label,
+        prompt: input.prompt,
+        workspace,
+        model: input.model,
+        status: 'running',
+        createdAt: now,
+        updatedAt: now
+      })
+      this.active += 1
+      try {
+        await this.options.store.upsert(admitted)
+        await this.recordChildEvent(admitted)
+        return admitted
+      } catch (error) {
+        this.active -= 1
+        throw error
+      }
     })
-    await this.options.store.upsert(record)
-    await this.recordChildEvent(record)
-    this.active += 1
     try {
       const executor: ChildRunExecutor = this.options.executor ?? defaultExecutor
       const result = await executor({
-        childId: id,
+        childId: record.id,
         parentThreadId: input.parentThreadId,
         parentTurnId: input.parentTurnId,
         ...(input.label ? { label: input.label } : {}),
         prompt: input.prompt,
-        workspace: input.workspace,
+        workspace,
         model: input.model,
         signal: input.signal
       })
@@ -217,6 +229,27 @@ export class DelegationRuntime {
   private now(): string {
     return this.options.nowIso?.() ?? new Date().toISOString()
   }
+
+  private async withAdmission<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.admissionTail
+    let release: () => void = () => undefined
+    this.admissionTail = new Promise<void>((resolve) => { release = resolve })
+    await previous
+    try {
+      return await operation()
+    } finally {
+      release()
+    }
+  }
+}
+
+async function resolveDelegatedWorkspace(parentWorkspace: string, requested?: string): Promise<string> {
+  const parentRoot = workspaceRoot(parentWorkspace)
+  const candidate = requested?.trim()
+    ? isAbsolute(requested) ? resolve(requested) : resolve(parentRoot, requested)
+    : parentRoot
+  await assertWorkspacePathBoundary(parentRoot, candidate, 'write')
+  return candidate
 }
 
 function toUsageSnapshot(usage: ChildRunRecord['usage']): UsageSnapshot {

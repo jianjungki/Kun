@@ -49,11 +49,20 @@ export type Harness = {
 }
 
 export function makeFakeModel(chunks: ModelStreamChunk[]): ModelClient {
+  let cursor = 0
   return {
     provider: 'fake',
     model: 'fake',
     async *stream(_request: ModelRequest): AsyncIterable<ModelStreamChunk> {
-      for (const chunk of chunks) yield chunk
+      // Treat each completed marker as the end of one model response. This
+      // lets a fixture describe a multi-step turn without replaying an
+      // earlier tool call forever on every subsequent request.
+      if (cursor >= chunks.length) return
+      while (cursor < chunks.length) {
+        const chunk = chunks[cursor++]
+        yield chunk
+        if (chunk.kind === 'completed' || chunk.kind === 'error') break
+      }
     }
   }
 }

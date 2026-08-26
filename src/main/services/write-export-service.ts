@@ -1,8 +1,8 @@
 import { BrowserWindow, clipboard, dialog } from 'electron'
 import { createRequire } from 'node:module'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, dirname, extname, join } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createElement, type ComponentPropsWithoutRef, type ReactNode } from 'react'
@@ -216,6 +216,13 @@ const EXPORT_CSS = `
 `
 
 const LOCAL_IMAGE_PATTERN = /(<img\b[^>]*?\bsrc=")([^"]+)(")/gi
+const IMAGE_TAG_PATTERN = /<img\b[^>]*>/gi
+const IMAGE_PRELOAD_PATTERN = /<link\b(?=[^>]*\brel="preload")(?=[^>]*\bas="image")[^>]*\/?\s*>/gi
+const IMAGE_SRC_PATTERN = /\bsrc="([^"]+)"/i
+const IMAGE_ALT_PATTERN = /\balt="([^"]*)"/i
+const MAX_EXPORT_IMAGE_BYTES = 8 * 1024 * 1024
+const MAX_EXPORT_IMAGE_TOTAL_BYTES = 24 * 1024 * 1024
+const MAX_EXPORT_IMAGE_COUNT = 32
 
 function isMarkdownFile(filePath: string): boolean {
   return /\.(md|markdown|mdx)$/i.test(filePath)
@@ -250,14 +257,22 @@ function exportDialogFilter(format: WriteExportFormat): Electron.FileFilter {
   return { name: 'DOCX', extensions: ['docx'] }
 }
 
-function mimeTypeForPath(filePath: string): string | null {
-  const extension = extname(filePath).toLowerCase()
-  if (extension === '.png') return 'image/png'
-  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg'
-  if (extension === '.gif') return 'image/gif'
-  if (extension === '.webp') return 'image/webp'
-  if (extension === '.bmp') return 'image/bmp'
-  if (extension === '.svg') return 'image/svg+xml'
+function detectedRasterMimeType(bytes: Buffer): string | null {
+  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return 'image/png'
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg'
+  }
+  const prefix = bytes.subarray(0, 6).toString('ascii')
+  if (prefix === 'GIF87a' || prefix === 'GIF89a') return 'image/gif'
+  if (
+    bytes.length >= 12 &&
+    bytes.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    bytes.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'image/webp'
+  }
   return null
 }
 
@@ -270,37 +285,78 @@ function defaultExportPath(sourcePath: string, format: WriteExportFormat): strin
   return join(dirname(sourcePath), `${basenameWithoutExtension(sourcePath)}${exportExtension(format)}`)
 }
 
-async function localFileUrlToDataUri(value: string): Promise<string | null> {
+async function localFileUrlToDataUri(
+  value: string,
+  allowedRoot: string,
+  remainingBytes: number
+): Promise<{ dataUri: string, byteSize: number } | null> {
   try {
     const parsed = new URL(value)
     if (parsed.protocol !== 'file:') return null
-    const filePath = fileURLToPath(parsed)
-    const mimeType = mimeTypeForPath(filePath)
-    if (!mimeType) return null
+    const filePath = await realpath(fileURLToPath(parsed))
+    const rootPath = await realpath(allowedRoot)
+    const pathFromRoot = relative(rootPath, filePath)
+    if (pathFromRoot.startsWith('..') || isAbsolute(pathFromRoot)) return null
+    const fileInfo = await stat(filePath)
+    if (!fileInfo.isFile() || fileInfo.size > MAX_EXPORT_IMAGE_BYTES || fileInfo.size > remainingBytes) return null
     const buffer = await readFile(filePath)
-    return `data:${mimeType};base64,${buffer.toString('base64')}`
+    const mimeType = detectedRasterMimeType(buffer)
+    if (!mimeType) return null
+    return {
+      dataUri: `data:${mimeType};base64,${buffer.toString('base64')}`,
+      byteSize: buffer.byteLength
+    }
   } catch {
     return null
   }
 }
 
-export async function inlineLocalImagesInHtml(html: string): Promise<string> {
+export async function inlineLocalImagesInHtml(
+  html: string,
+  options: { allowedRoot?: string } = {}
+): Promise<string> {
   const matches = [...html.matchAll(LOCAL_IMAGE_PATTERN)]
   if (matches.length === 0) return html
 
   const replacements = new Map<string, string>()
-  await Promise.all(
-    matches.map(async (match) => {
-      const rawSrc = match[2]
-      if (!rawSrc || replacements.has(rawSrc)) return
-      const dataUri = await localFileUrlToDataUri(rawSrc)
-      if (dataUri) replacements.set(rawSrc, dataUri)
-    })
-  )
+  const allowedRoot = resolve(options.allowedRoot?.trim() || process.cwd())
+  let totalBytes = 0
+  for (const match of matches) {
+    const rawSrc = match[2]
+    if (!rawSrc || replacements.has(rawSrc) || replacements.size >= MAX_EXPORT_IMAGE_COUNT) continue
+    const image = await localFileUrlToDataUri(
+      rawSrc,
+      allowedRoot,
+      MAX_EXPORT_IMAGE_TOTAL_BYTES - totalBytes
+    )
+    if (!image) continue
+    replacements.set(rawSrc, image.dataUri)
+    totalBytes += image.byteSize
+  }
 
   if (replacements.size === 0) return html
   return html.replace(LOCAL_IMAGE_PATTERN, (fullMatch, prefix, rawSrc, suffix) => {
     return `${prefix}${replacements.get(rawSrc) ?? rawSrc}${suffix}`
+  })
+}
+
+function safeEmbeddedRasterDataUri(value: string): boolean {
+  const match = /^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/=\s]+)$/i.exec(value)
+  if (!match?.[2]) return false
+  try {
+    const bytes = Buffer.from(match[2].replace(/\s/g, ''), 'base64')
+    return bytes.byteLength <= MAX_EXPORT_IMAGE_BYTES && detectedRasterMimeType(bytes) === match[1].toLowerCase()
+  } catch {
+    return false
+  }
+}
+
+function removeUnsafeExportImages(html: string): string {
+  return html.replace(IMAGE_PRELOAD_PATTERN, '').replace(IMAGE_TAG_PATTERN, (tag) => {
+    const src = IMAGE_SRC_PATTERN.exec(tag)?.[1] ?? ''
+    if (safeEmbeddedRasterDataUri(src)) return tag
+    const alt = IMAGE_ALT_PATTERN.exec(tag)?.[1]?.trim()
+    return alt ? `<span>[Image: ${escapeHtml(alt)}]</span>` : ''
   })
 }
 
@@ -356,11 +412,15 @@ function renderMarkdownFragment(content: string, sourcePath: string): string {
 export async function buildWriteClipboardHtmlFragment(options: {
   sourcePath: string
   content: string
+  workspaceRoot?: string
 }): Promise<string> {
   const fragment = isMarkdownFile(options.sourcePath)
     ? renderMarkdownFragment(options.content, options.sourcePath)
     : renderPlainTextFragment(options.content)
-  const body = await inlineLocalImagesInHtml(fragment)
+  const inlined = await inlineLocalImagesInHtml(fragment, {
+    allowedRoot: options.workspaceRoot || dirname(options.sourcePath)
+  })
+  const body = removeUnsafeExportImages(inlined)
   return `<article class="markdown-body">${body}</article>`
 }
 
@@ -373,11 +433,13 @@ export async function buildWriteExportHtmlDocument(options: {
   content: string
   title?: string
   wordCompatible?: boolean
+  workspaceRoot?: string
 }): Promise<string> {
   const title = options.title?.trim() || basenameWithoutExtension(options.sourcePath)
   const body = await buildWriteClipboardHtmlFragment({
     sourcePath: options.sourcePath,
-    content: options.content
+    content: options.content,
+    workspaceRoot: options.workspaceRoot
   })
   const baseHref = pathToFileURL(`${dirname(options.sourcePath)}/`).href
   const namespaces = options.wordCompatible
@@ -420,7 +482,8 @@ export async function copyWriteDocumentAsRichText(
 
     const html = await buildWriteClipboardHtmlFragment({
       sourcePath: resolved.path,
-      content: payload.content
+      content: payload.content,
+      workspaceRoot: payload.workspaceRoot
     })
 
     clipboard.write({
@@ -451,7 +514,7 @@ async function bufferFromDocxResult(result: ArrayBuffer | Blob): Promise<Buffer>
 }
 
 async function renderHtmlToPdf(html: string): Promise<Buffer> {
-  const tempDir = await mkdtemp(join(tmpdir(), 'deepseek-gui-export-'))
+  const tempDir = await mkdtemp(join(tmpdir(), 'pengcodex-export-'))
   const tempHtmlPath = join(tempDir, 'document.html')
   await writeFile(tempHtmlPath, html, 'utf8')
 
@@ -539,7 +602,8 @@ export async function exportWriteDocument(
       sourcePath,
       content: payload.content,
       title,
-      wordCompatible: payload.format === 'doc'
+      wordCompatible: payload.format === 'doc',
+      workspaceRoot: payload.workspaceRoot
     })
 
     if (payload.format === 'html' || payload.format === 'doc') {
@@ -547,7 +611,7 @@ export async function exportWriteDocument(
     } else if (payload.format === 'docx') {
       const docx = await htmlToDocx(html, null, {
         title,
-        creator: 'DeepSeek GUI',
+        creator: 'PengCodex',
         keywords: ['markdown', 'export'],
         description: `Exported from ${basename(sourcePath)}`,
         font: 'Arial',

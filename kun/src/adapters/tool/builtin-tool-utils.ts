@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { readFile, readdir, stat } from 'node:fs/promises'
+import { readFile, readdir, realpath, stat } from 'node:fs/promises'
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { ToolHostContext } from '../../ports/tool-host.js'
@@ -71,7 +71,41 @@ export function resolveWorkspacePath(inputPath: string, context: ToolHostContext
   return {
     workspaceRoot: root,
     absolutePath,
-    relativePath: relativePath || '.'
+    relativePath: normalizeToolPath(relativePath || '.')
+  }
+}
+
+export async function assertWorkspacePathBoundary(
+  workspace: string,
+  absolutePath: string,
+  access: 'read' | 'write'
+): Promise<void> {
+  const root = workspaceRoot(workspace)
+  const physicalRoot = await realpath(root)
+  const physicalTarget = access === 'read'
+    ? await realpath(absolutePath)
+    : await realpathNearestExisting(absolutePath)
+  const targetRelative = relative(physicalRoot, physicalTarget)
+  if (
+    targetRelative === '..' ||
+    targetRelative.startsWith(`..${sep}`) ||
+    isAbsolute(targetRelative)
+  ) {
+    throw new Error(`path resolves outside the workspace root: ${absolutePath}`)
+  }
+}
+
+async function realpathNearestExisting(path: string): Promise<string> {
+  let candidate = path
+  while (true) {
+    try {
+      return await realpath(candidate)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      const parent = dirname(candidate)
+      if (parent === candidate) throw error
+      candidate = parent
+    }
   }
 }
 
@@ -296,6 +330,8 @@ export async function waitForSpawnExit(
   return closeCode ?? exitCode
 }
 
+const PROCESS_TREE_KILL_TIMEOUT_MS = 2000
+
 export function terminateSpawnTree(
   child: ChildProcess,
   options: {
@@ -303,36 +339,55 @@ export function terminateSpawnTree(
     signal?: NodeJS.Signals
     spawnImpl?: SpawnLike
   } = {}
-): void {
+): Promise<void> {
   const signal = options.signal ?? 'SIGTERM'
   const pid = child.pid
   if (!pid) {
     child.kill(signal)
-    return
+    return Promise.resolve()
   }
 
   if ((options.platform ?? process.platform) === 'win32') {
-    try {
-      const taskkill = (options.spawnImpl ?? spawn)('taskkill', ['/pid', String(pid), '/T', '/F'], {
-        stdio: 'ignore',
-        windowsHide: true
-      })
-      taskkill.once('error', () => {
-        child.kill(signal)
-      })
-      taskkill.unref?.()
-      return
-    } catch {
-      child.kill(signal)
-      return
-    }
+    return new Promise<void>((resolvePromise) => {
+      let settled = false
+      const finish = () => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        resolvePromise()
+      }
+      const timer = setTimeout(finish, PROCESS_TREE_KILL_TIMEOUT_MS)
+      timer.unref?.()
+      try {
+        const taskkill = (options.spawnImpl ?? spawn)('taskkill', ['/pid', String(pid), '/T', '/F'], {
+          stdio: 'ignore',
+          windowsHide: true
+        })
+        taskkill.once('error', () => {
+          try {
+            child.kill(signal)
+          } finally {
+            finish()
+          }
+        })
+        taskkill.once('close', finish)
+        taskkill.unref?.()
+      } catch {
+        try {
+          child.kill(signal)
+        } finally {
+          finish()
+        }
+      }
+    })
   }
 
   try {
     process.kill(-pid, signal)
-    return
+    return Promise.resolve()
   } catch {
     child.kill(signal)
+    return Promise.resolve()
   }
 }
 

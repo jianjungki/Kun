@@ -8,7 +8,7 @@ import type {
   ThreadUsageSnapshot,
   UserInputAnswer
 } from './types'
-import { getKunRuntimeSettings } from '@shared/app-settings'
+import { getKunRuntimeSettings, type CacheEngineMode } from '@shared/app-settings'
 import {
   KUN_ATTACHMENT_DIAGNOSTICS_PATH,
   KUN_ATTACHMENTS_PATH,
@@ -88,7 +88,7 @@ function readRuntimeJson<T>(body: string, fallback: string): T {
 }
 
 /**
- * GUI-side adapter for the Kun HTTP/SSE contract.
+ * GUI-side adapter for the PengCodex Core HTTP/SSE contract.
  *
  * The provider owns renderer orchestration only: HTTP calls, SSE
  * reconnection, and approval policy decisions. DTO and chat-block
@@ -96,7 +96,7 @@ function readRuntimeJson<T>(body: string, fallback: string): T {
  */
 export class KunRuntimeProvider implements AgentProvider {
   readonly id = 'kun' as const
-  readonly displayName = 'Kun'
+  readonly displayName = 'PengCodex Core'
 
   getCapabilities(): {
     interrupt: boolean
@@ -141,6 +141,7 @@ export class KunRuntimeProvider implements AgentProvider {
     workspace?: string
     title?: string
     mode?: KunThreadMode
+    cacheEngineMode?: CacheEngineMode
   }): Promise<NormalizedThread> {
     const settings = await rendererRuntimeClient.getSettings()
     const runtime = getKunRuntimeSettings(settings)
@@ -152,6 +153,7 @@ export class KunRuntimeProvider implements AgentProvider {
         title: input.title,
         model: runtime.model,
         mode: normalizeThreadMode(input.mode),
+        cacheEngineMode: input.cacheEngineMode ?? runtime.cacheEngineMode,
         approvalPolicy: runtime.approvalPolicy,
         sandboxMode: runtime.sandboxMode
       })

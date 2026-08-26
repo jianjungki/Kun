@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 export type AtomicWriteFileOptions = {
+  directWriteFallback?: boolean
+  mode?: number
   renameRetry?: {
     attempts?: number
     baseDelayMs?: number
@@ -21,20 +23,21 @@ export async function atomicWriteFile(
   await mkdir(dirname(path), { recursive: true })
   const tmp = `${path}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`
   try {
-    await writeFile(tmp, contents, 'utf-8')
+    await writeFile(tmp, contents, { encoding: 'utf-8', mode: options.mode })
     try {
       await renameWithRetry(tmp, path, options.renameRetry)
     } catch (error) {
-      if (!shouldFallbackToDirectWrite(error)) {
+      if (!shouldFallbackToDirectWrite(error, options)) {
         throw error
       }
-      await writeFile(path, contents, 'utf-8')
+      await writeFile(path, contents, { encoding: 'utf-8', mode: options.mode })
     }
   } catch (error) {
     await rm(tmp, { force: true }).catch(() => undefined)
     throw error
   }
   await rm(tmp, { force: true }).catch(() => undefined)
+  if (options.mode !== undefined) await chmod(path, options.mode)
 }
 
 async function renameWithRetry(
@@ -62,8 +65,13 @@ function isRetryableRenameError(error: unknown): boolean {
   return RETRYABLE_RENAME_ERROR_CODES.has(String((error as { code?: unknown })?.code ?? ''))
 }
 
-function shouldFallbackToDirectWrite(error: unknown): boolean {
-  return process.platform === 'win32' && isRetryableRenameError(error)
+function shouldFallbackToDirectWrite(
+  error: unknown,
+  options: AtomicWriteFileOptions
+): boolean {
+  return options.directWriteFallback !== false &&
+    process.platform === 'win32' &&
+    isRetryableRenameError(error)
 }
 
 function delay(ms: number): Promise<void> {

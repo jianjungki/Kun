@@ -1,3 +1,6 @@
 export * from './cli-options.js'
 export * from './serve.js'
 export * from './agent-cli.js'
+export * from './runtime-cli.js'
+export * from './runtime-discovery.js'
+export * from './extension-cli.js'

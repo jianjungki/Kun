@@ -234,6 +234,12 @@ export class TurnService {
     return this.inflightTurns.get(turnId)?.signal
   }
 
+  abortAllTurns(): number {
+    const controllers = [...this.inflightTurns.values()]
+    for (const controller of controllers) controller.abort()
+    return controllers.length
+  }
+
   async getTurn(threadId: string, turnId: string): Promise<Turn | null> {
     const thread = await this.deps.threadStore.get(threadId)
     return thread?.turns.find((turn) => turn.id === turnId) ?? null

@@ -1,4 +1,4 @@
-# Kun Contribution Guide: Architecture, design patterns and code organization ideas
+# PengCodex Core Contribution Guide: Architecture, design patterns and code organization ideas
 
 > Applicable to: Any engineer who wants to contribute code to the `kun/` package.
 > Reading path: For your first contribution, you can read the entire text in order; come back later to find specific chapters.
@@ -9,7 +9,7 @@
 
 ## 1. One sentence summary
 
-**Kun is a strict implementation of Ports & Adapters + Functional Core / Imperative
+**PengCodex Core is a strict implementation of Ports & Adapters + Functional Core / Imperative
 TypeScript package for Shell**. Every modification should:
 
 1. First use zod to write the schema in `contracts/` and export the type;
@@ -27,7 +27,7 @@ Let’s expand this path with real code.
 
 ## 2. Overall architecture: Hexagonal (Hexagonal / Ports & Adapters)
 
-Kun's directory itself is a hexagonal physical layout:
+PengCodex Core's directory itself is a hexagonal physical layout:
 
 ```text
                        ┌─────────────────────────────┐
@@ -113,7 +113,7 @@ Every time you change a layer, run `npm test`. This is "increment by layer".
 
 ## 3. Core design patterns
 
-Kun uses multiple classic patterns simultaneously, which reinforce each other rather than conflict.
+PengCodex Core uses multiple classic patterns simultaneously, which reinforce each other rather than conflict.
 
 ### 3.1 Ports & Adapters (Hexagonal)
 
@@ -621,7 +621,7 @@ Before submitting a PR, confirm each item:
 
 Back to the "one sentence summary" at the beginning:
 
-> **Kun is a strict implementation of Ports & Adapters + Functional Core /
+> **PengCodex Core is a strict implementation of Ports & Adapters + Functional Core /
 > TypeScript package for Imperative Shell**.
 
 Every new PR follows this diagram: define contract → describe port → write functional

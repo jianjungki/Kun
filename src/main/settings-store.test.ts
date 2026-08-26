@@ -15,6 +15,7 @@ describe('JsonSettingsStore', () => {
 
     expect(loaded.guiUpdate.channel).toBe(DEFAULT_GUI_UPDATE_CHANNEL)
     expect(loaded.agents.kun.approvalPolicy).toBe(DEFAULT_APPROVAL_POLICY)
+    expect(loaded.agents.kun.runtimeToken).toMatch(/^[A-Za-z0-9_-]{40,}$/)
     expect(loaded.appBehavior).toEqual({
       openAtLogin: false,
       startMinimized: false,
@@ -28,7 +29,7 @@ describe('JsonSettingsStore', () => {
     const store = new JsonSettingsStore(userDataDir)
     const loaded = await store.load()
 
-    expect(loaded.write.defaultWorkspaceRoot).toContain('.deepseekgui')
+    expect(loaded.write.defaultWorkspaceRoot).toContain('.pengcodex')
     expect(loaded.write.workspaces).toContain(loaded.write.defaultWorkspaceRoot)
     expect(loaded.write.inlineCompletion.enabled).toBe(true)
     expect(loaded.write.inlineCompletion.retrievalEnabled).toBe(true)
@@ -155,6 +156,7 @@ describe('JsonSettingsStore', () => {
             {
               id: 'custom-provider-2',
               name: 'Custom Provider',
+              providerKind: 'anthropic',
               apiKey: 'sk-custom',
               baseUrl: 'https://custom.example/v1',
               endpointFormat: 'messages',
@@ -182,6 +184,7 @@ describe('JsonSettingsStore', () => {
           id: 'custom-provider-2',
           apiKey: 'sk-custom',
           baseUrl: 'https://custom.example/v1',
+          providerKind: 'anthropic',
           endpointFormat: 'messages',
           models: ['custom-model']
         })
@@ -199,6 +202,7 @@ describe('JsonSettingsStore', () => {
           id: 'custom-provider-2',
           apiKey: 'sk-custom',
           baseUrl: 'https://custom.example/v1',
+          providerKind: 'anthropic',
           endpointFormat: 'messages',
           models: ['custom-model']
         })
@@ -210,8 +214,8 @@ describe('JsonSettingsStore', () => {
   it('loads settings from the legacy lowercase userData directory and writes them into the current path', async () => {
     const supportRoot = await mkdtemp(join(tmpdir(), 'ds-gui-settings-compat-'))
     const legacyUserDataDir = join(supportRoot, 'deepseek-gui')
-    const currentUserDataDir = join(supportRoot, 'DeepSeek GUI')
-    const currentSettingsPath = join(currentUserDataDir, 'deepseek-gui-settings.json')
+    const currentUserDataDir = join(supportRoot, 'PengCodex')
+    const currentSettingsPath = join(currentUserDataDir, 'pengcodex-settings.json')
 
     await mkdir(legacyUserDataDir, { recursive: true })
     await writeFile(
@@ -273,13 +277,13 @@ describe('JsonSettingsStore', () => {
 
   it('backs up invalid JSON and replaces it with defaults', async () => {
     const userDataDir = await mkdtemp(join(tmpdir(), 'ds-gui-settings-'))
-    const settingsPath = join(userDataDir, 'deepseek-gui-settings.json')
+    const settingsPath = join(userDataDir, 'pengcodex-settings.json')
     await writeFile(settingsPath, '{ invalid json', 'utf8')
 
     const store = new JsonSettingsStore(userDataDir)
     const loaded = await store.load()
     const files = await readdir(userDataDir)
-    const backupName = files.find((file) => file.startsWith('deepseek-gui-settings.invalid-'))
+    const backupName = files.find((file) => file.startsWith('pengcodex-settings.invalid-'))
 
     expect(loaded.workspaceRoot.length).toBeGreaterThan(0)
     expect(backupName).toBeTruthy()
@@ -290,7 +294,7 @@ describe('JsonSettingsStore', () => {
 
   it('throws for non-recoverable read errors', async () => {
     const userDataDir = await mkdtemp(join(tmpdir(), 'ds-gui-settings-'))
-    const settingsPath = join(userDataDir, 'deepseek-gui-settings.json')
+    const settingsPath = join(userDataDir, 'pengcodex-settings.json')
     await mkdir(settingsPath, { recursive: true })
 
     const store = new JsonSettingsStore(userDataDir)
@@ -348,7 +352,7 @@ describe('JsonSettingsStore', () => {
 
   it('omits agentProvider when writing normalized settings to disk', async () => {
     const userDataDir = await mkdtemp(join(tmpdir(), 'ds-gui-settings-'))
-    const settingsPath = join(userDataDir, 'deepseek-gui-settings.json')
+    const settingsPath = join(userDataDir, 'pengcodex-settings.json')
     const store = new JsonSettingsStore(userDataDir)
     await store.load()
     await store.patch({
@@ -458,7 +462,7 @@ describe('JsonSettingsStore', () => {
 
       // Final file is present and non-empty.
       const finalContents = await readFile(
-        join(userDataDir, 'deepseek-gui-settings.json'),
+        join(userDataDir, 'pengcodex-settings.json'),
         'utf8'
       )
       expect(finalContents.length).toBeGreaterThan(0)
@@ -466,6 +470,64 @@ describe('JsonSettingsStore', () => {
       // No .tmp leftover from the atomic write.
       const entries = await readdir(userDataDir)
       expect(entries.filter((entry) => entry.includes('.tmp'))).toEqual([])
+    } finally {
+      await rm(userDataDir, { recursive: true, force: true })
+    }
+  })
+
+  it('persists a generated runtime token for existing secure settings', async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), 'pengcodex-settings-token-'))
+    const settingsPath = join(userDataDir, 'pengcodex-settings.json')
+    await writeFile(settingsPath, JSON.stringify({
+      version: 1,
+      agents: {
+        kun: {
+          runtimeToken: '',
+          insecure: false
+        }
+      }
+    }), 'utf8')
+
+    const first = await new JsonSettingsStore(userDataDir).load()
+    const second = await new JsonSettingsStore(userDataDir).load()
+
+    expect(first.agents.kun.runtimeToken).toMatch(/^[A-Za-z0-9_-]{40,}$/)
+    expect(second.agents.kun.runtimeToken).toBe(first.agents.kun.runtimeToken)
+    expect(await readFile(settingsPath, 'utf8')).toContain(first.agents.kun.runtimeToken)
+  })
+
+  it('encrypts credential fields on disk and decrypts them when reloaded', async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), 'pengcodex-settings-secret-'))
+    const codec = {
+      encrypt: (value: string) => Buffer.from(`encrypted:${value}`, 'utf8').toString('base64'),
+      decrypt: (value: string) => Buffer.from(value, 'base64').toString('utf8').replace(/^encrypted:/, '')
+    }
+
+    try {
+      const first = new JsonSettingsStore(userDataDir, codec)
+      const settings = await first.load()
+      settings.provider.apiKey = 'provider-secret'
+      settings.agents.kun.runtimeToken = 'runtime-secret'
+      settings.claw.im.secret = 'claw-secret'
+      settings.schedule.internal.secret = 'schedule-secret'
+      await first.save(settings)
+
+      const settingsPath = join(userDataDir, 'pengcodex-settings.json')
+      const raw = await readFile(settingsPath, 'utf8')
+      expect(raw).toContain('pengcodex-safe:v1:')
+      expect(raw).not.toContain('provider-secret')
+      expect(raw).not.toContain('runtime-secret')
+      expect(raw).not.toContain('claw-secret')
+      expect(raw).not.toContain('schedule-secret')
+      if (process.platform !== 'win32') {
+        expect((await stat(settingsPath)).mode & 0o777).toBe(0o600)
+      }
+
+      const reloaded = await new JsonSettingsStore(userDataDir, codec).load()
+      expect(reloaded.provider.apiKey).toBe('provider-secret')
+      expect(reloaded.agents.kun.runtimeToken).toBe('runtime-secret')
+      expect(reloaded.claw.im.secret).toBe('claw-secret')
+      expect(reloaded.schedule.internal.secret).toBe('schedule-secret')
     } finally {
       await rm(userDataDir, { recursive: true, force: true })
     }

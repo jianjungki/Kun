@@ -7,6 +7,7 @@ import type {
   CoreRuntimeSkillJson,
   CoreRuntimeToolDiagnosticsJson
 } from './kun-contract'
+import type { CacheEngineMode } from '@shared/app-settings'
 
 export type ToolItemKind = 'tool_call' | 'command_execution' | 'file_change'
 export type RuntimeErrorSeverity = 'info' | 'warning' | 'error'
@@ -342,7 +343,7 @@ export type ThreadDeltaEvent = {
   seq?: number
 }
 
-/** Cumulative usage/cost for a Kun thread. */
+/** Cumulative usage/cost for a PengCodex Core thread. */
 export type ThreadUsageSnapshot = {
   inputTokens: number
   outputTokens: number
@@ -393,7 +394,12 @@ export interface AgentProvider {
   }
   connect(): Promise<void>
   listThreads(options?: ThreadListOptions): Promise<NormalizedThread[]>
-  createThread(input: { workspace?: string; title?: string; mode?: string }): Promise<NormalizedThread>
+  createThread(input: {
+    workspace?: string
+    title?: string
+    mode?: string
+    cacheEngineMode?: CacheEngineMode
+  }): Promise<NormalizedThread>
   getThreadDetail(threadId: string): Promise<{
     blocks: ChatBlock[]
     latestSeq: number

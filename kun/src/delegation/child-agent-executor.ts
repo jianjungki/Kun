@@ -1,8 +1,6 @@
-import { InMemoryApprovalGate } from '../adapters/in-memory-approval-gate.js'
 import { InMemoryEventBus } from '../adapters/in-memory-event-bus.js'
 import { InMemorySessionStore } from '../adapters/in-memory-session-store.js'
 import { InMemoryThreadStore } from '../adapters/in-memory-thread-store.js'
-import { InMemoryUserInputGate } from '../adapters/in-memory-user-input-gate.js'
 import type { ImmutablePrefix } from '../cache/immutable-prefix.js'
 import type { ModelCapabilityMetadata } from '../contracts/capabilities.js'
 import type { TurnItem } from '../contracts/items.js'
@@ -16,6 +14,8 @@ import { SteeringQueue } from '../loop/steering-queue.js'
 import type { TokenEconomyConfig } from '../loop/token-economy.js'
 import type { MemoryStore } from '../memory/memory-store.js'
 import type { ModelClient } from '../ports/model-client.js'
+import type { ApprovalGate } from '../ports/approval-gate.js'
+import type { UserInputGate } from '../ports/user-input-gate.js'
 import { RandomIdGenerator } from '../ports/id-generator.js'
 import type { ToolHost } from '../ports/tool-host.js'
 import type { SkillRuntime } from '../skills/skill-runtime.js'
@@ -82,8 +82,8 @@ export function createChildAgentExecutor(options: ChildAgentExecutorOptions): Ch
     const loop = new AgentLoop({
       threadStore,
       sessionStore,
-      approvalGate: new InMemoryApprovalGate(),
-      userInputGate: new InMemoryUserInputGate(),
+      approvalGate: childApprovalGate,
+      userInputGate: childUserInputGate,
       model: options.model,
       toolHost: options.toolHost,
       usage,
@@ -140,6 +140,23 @@ export function createChildAgentExecutor(options: ChildAgentExecutorOptions): Ch
       usage: usage.forThread(thread.id)
     }
   }
+}
+
+const childApprovalGate: ApprovalGate = {
+  request: async () => 'deny',
+  decide: () => false,
+  pending: () => [],
+  get: () => undefined
+}
+
+const childUserInputGate: UserInputGate = {
+  request: async () => {
+    throw new Error('child agents cannot request interactive user input')
+  },
+  get: () => undefined,
+  resolve: () => false,
+  pending: () => [],
+  reset: () => undefined
 }
 
 function childThreadTitle(childId: string, label?: string): string {

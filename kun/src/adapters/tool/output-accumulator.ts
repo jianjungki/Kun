@@ -113,6 +113,9 @@ function looksLikeHanUtf16LeWithoutNuls(buffer: Buffer): boolean {
 function chooseOutputEncoding(buffer: Buffer, final: boolean): OutputTextEncoding | null {
   if (startsWithUtf16LeBom(buffer) || looksLikeUtf16Le(buffer)) return 'utf-16le'
   if (startsWithUtf8Bom(buffer)) return 'utf-8'
+  // ASCII/UTF-8 command output is common in short streaming chunks. Do not
+  // hold it until process exit just to distinguish it from UTF-16 output.
+  if (buffer.length >= 4 && !buffer.includes(0)) return 'utf-8'
   if (buffer.length >= 32 || final) return 'utf-8'
   return null
 }

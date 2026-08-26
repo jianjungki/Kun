@@ -19,6 +19,12 @@ import {
   MODEL_ENDPOINT_FORMATS,
   normalizeModelEndpointFormat
 } from '../contracts/model-endpoint-format.js'
+import {
+  DEFAULT_MODEL_PROVIDER_KIND,
+  MODEL_PROVIDER_KINDS,
+  normalizeModelProviderKind
+} from '../contracts/model-provider.js'
+import { StudioRuntimeConfigSchema } from '../contracts/studio.js'
 
 export const KUN_CONFIG_FILENAME = 'config.json'
 export const DEFAULT_KUN_MODEL = 'deepseek-v4-pro'
@@ -173,6 +179,10 @@ export const KunServeConfigSchema = z
     runtimeToken: z.string().optional(),
     apiKey: z.string().optional(),
     baseUrl: z.string().optional(),
+    providerKind: z.preprocess(
+      normalizeModelProviderKind,
+      z.enum(MODEL_PROVIDER_KINDS)
+    ).default(DEFAULT_MODEL_PROVIDER_KIND).optional(),
     endpointFormat: z.preprocess(
       normalizeModelEndpointFormat,
       z.enum(MODEL_ENDPOINT_FORMATS)
@@ -193,6 +203,7 @@ export const KunConfigSchema = z
     models: ModelConfigSchema.optional(),
     contextCompaction: ContextCompactionConfigSchema.optional(),
     runtime: RuntimeTuningConfigSchema.optional(),
+    studio: StudioRuntimeConfigSchema.optional(),
     capabilities: KunCapabilitiesConfig.default(DEFAULT_KUN_CAPABILITIES_CONFIG)
   })
   .strict()
@@ -204,6 +215,8 @@ export type ContextCompactionConfig = z.infer<typeof ContextCompactionConfigSche
 export type RuntimeTuningConfig = z.infer<typeof RuntimeTuningConfigSchema>
 export type TokenEconomyConfig = z.infer<typeof TokenEconomyConfigSchema>
 export type StorageConfig = z.infer<typeof StorageConfigSchema>
+export type StudioConfig = z.infer<typeof StudioRuntimeConfigSchema>
+export { StudioRuntimeConfigSchema }
 
 export type LoadedKunConfig = {
   path: string
@@ -218,12 +231,12 @@ export function readKunConfigFile(path: string): LoadedKunConfig {
     json = JSON.parse(text)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Failed to parse Kun config JSON at ${resolvedPath}: ${message}`)
+    throw new Error(`Failed to parse PengCodex Core config JSON at ${resolvedPath}: ${message}`)
   }
   const parsed = KunConfigSchema.safeParse(json)
   if (!parsed.success) {
     throw new Error(
-      `Invalid Kun config at ${resolvedPath}: ${JSON.stringify(parsed.error.issues, null, 2)}`
+      `Invalid PengCodex Core config at ${resolvedPath}: ${JSON.stringify(parsed.error.issues, null, 2)}`
     )
   }
   return { path: resolvedPath, config: parsed.data }

@@ -12,6 +12,8 @@ import {
   KUN_RUNTIME_INFO_TEMPLATE,
   KUN_RUNTIME_TOOLS_TEMPLATE,
   KUN_SESSION_RESUME_TEMPLATE,
+  KUN_STUDIO_IMAGE_TEMPLATE,
+  KUN_STUDIO_VIDEO_TEMPLATE,
   KUN_SKILLS_TEMPLATE,
   KUN_THREADS_TEMPLATE,
   KUN_THREAD_COMPACT_TEMPLATE,
@@ -30,6 +32,7 @@ import {
   CLAW_MODEL_IDS,
   CACHE_ENGINE_MODES,
   MODEL_ENDPOINT_FORMATS,
+  MODEL_PROVIDER_KINDS,
   SCHEDULE_MODEL_IDS,
   SCHEDULE_REASONING_EFFORT_IDS,
   WRITE_INLINE_COMPLETION_MODEL_IDS
@@ -121,7 +124,9 @@ const ENDPOINTS: readonly EndpointTemplate[] = [
   compileEndpoint(KUN_APPROVAL_TEMPLATE, ['POST']),
   compileEndpoint(KUN_USER_INPUT_TEMPLATE, ['POST']),
   compileEndpoint(KUN_SESSION_RESUME_TEMPLATE, ['POST']),
-  compileEndpoint(KUN_USAGE_TEMPLATE, ['GET'])
+  compileEndpoint(KUN_USAGE_TEMPLATE, ['GET']),
+  compileEndpoint(KUN_STUDIO_IMAGE_TEMPLATE, ['POST']),
+  compileEndpoint(KUN_STUDIO_VIDEO_TEMPLATE, ['POST'])
 ]
 
 function isAllowedRuntimeRequest(value: { path: string; method?: string }): boolean {
@@ -159,6 +164,7 @@ const uiFontScaleSchema = z.enum(['small', 'medium', 'large'])
 const approvalPolicySchema = z.enum(['on-request', 'untrusted', 'never', 'auto', 'suggest'])
 const sandboxModeSchema = z.enum(['read-only', 'workspace-write', 'danger-full-access', 'external-sandbox'])
 const mcpSearchModeSchema = z.enum(['direct', 'search', 'auto'])
+const skillRegistryActivationModeSchema = z.enum(['all', 'selected'])
 const kunStorageBackendSchema = z.enum(['hybrid', 'file'])
 const kunCompactionSummaryModeSchema = z.enum(['heuristic', 'model'])
 const cacheEngineModeSchema = z.enum(CACHE_ENGINE_MODES)
@@ -173,6 +179,7 @@ const writeInlineCompletionModelSchema = z.union([
   trimmedString(128)
 ])
 const modelEndpointFormatSchema = z.enum(MODEL_ENDPOINT_FORMATS)
+const modelProviderKindSchema = z.enum(MODEL_PROVIDER_KINDS)
 
 const modelProviderPatchSchema = z.object({
   apiKey: z.string().max(MAX_BODY_BYTES).optional(),
@@ -180,6 +187,7 @@ const modelProviderPatchSchema = z.object({
   providers: z.array(z.object({
     id: z.string().trim().min(1).max(64).optional(),
     name: z.string().trim().min(1).max(80).optional(),
+    providerKind: modelProviderKindSchema.optional(),
     apiKey: z.string().max(MAX_BODY_BYTES).optional(),
     baseUrl: z.string().trim().max(MAX_URL_LENGTH).optional(),
     endpointFormat: modelEndpointFormatSchema.optional(),
@@ -194,6 +202,7 @@ const kunRuntimePatchSchema = z.object({
   apiKey: z.string().max(MAX_BODY_BYTES).optional(),
   baseUrl: z.string().trim().max(MAX_URL_LENGTH).optional(),
   providerId: z.string().trim().max(64).optional(),
+  providerKind: modelProviderKindSchema.optional(),
   endpointFormat: modelEndpointFormatSchema.optional(),
   runtimeToken: z.string().max(MAX_BODY_BYTES).optional(),
   dataDir: defaultPathSchema,
@@ -237,6 +246,10 @@ const kunRuntimePatchSchema = z.object({
     baseUrl: z.string().trim().max(MAX_URL_LENGTH).optional(),
     allowDomains: z.array(z.string().trim().min(1).max(256)).max(256).optional(),
     denyDomains: z.array(z.string().trim().min(1).max(256)).max(256).optional()
+  }).strict().optional(),
+  skillRegistry: z.object({
+    activationMode: skillRegistryActivationModeSchema.optional(),
+    activeSkillIds: z.array(z.string().trim().min(1).max(128)).max(256).optional()
   }).strict().optional(),
   storage: z.object({
     backend: kunStorageBackendSchema.optional(),
@@ -492,6 +505,21 @@ const scheduleSettingsPatchSchema = z.object({
   tasks: z.array(scheduledTaskPatchSchema).max(512).optional()
 }).strict()
 
+const studioMediaSettingsPatchSchema = z.object({
+  enabled: z.boolean().optional(),
+  providerId: z.string().trim().max(64).optional(),
+  providerKind: modelProviderKindSchema.optional(),
+  apiKey: z.string().max(MAX_BODY_BYTES).optional(),
+  baseUrl: z.string().trim().max(MAX_URL_LENGTH).optional(),
+  model: z.string().trim().min(1).max(128).optional()
+}).strict()
+
+const studioSettingsPatchSchema = z.object({
+  enabled: z.boolean().optional(),
+  image: studioMediaSettingsPatchSchema.optional(),
+  video: studioMediaSettingsPatchSchema.optional()
+}).strict()
+
 function stripLegacySettingsPatchKeys(payload: unknown): unknown {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return payload
   const source = payload as Record<string, unknown>
@@ -530,6 +558,7 @@ const settingsPatchObjectSchema = z.object({
   write: writeSettingsPatchSchema.optional(),
   claw: clawSettingsPatchSchema.optional(),
   schedule: scheduleSettingsPatchSchema.optional(),
+  studio: studioSettingsPatchSchema.optional(),
   guiUpdate: z.object({
     channel: z.enum(GUI_UPDATE_CHANNELS).optional()
   }).strict().optional(),

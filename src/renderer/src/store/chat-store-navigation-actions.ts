@@ -612,7 +612,7 @@ export function createNavigationActions(
       const forkRegistry = hydrateThreadForkRegistry(sidebarThreads, readThreadForkRegistry())
       saveThreadForkRegistry(forkRegistry)
       const enrichedThreads = enrichThreadsWithForkInfo(sidebarThreads, forkRegistry)
-      // Preserve the active Kun thread when it is not in the listing yet.
+      // Preserve the active PengCodex Core thread when it is not in the listing yet.
       // A brand-new thread can be absent from `listThreads` until the first
       // message is written. Without this, the optimistic thread would be wiped
       // from the sidebar and its live turn aborted by the selection clearing

@@ -1,7 +1,7 @@
 {
   "name": "kun",
   "version": "0.1.0",
-  "description": "Kun local HTTP/SSE agent runtime for DeepSeek-GUI",
+  "description": "PengCodex Core local HTTP/SSE agent runtime for PengCodex",
   "type": "module",
   "private": true,
   "main": "./dist/index.js",
@@ -48,6 +48,7 @@
     }
   },
   "bin": {
+    "pengcodex": "./dist/cli/serve-entry.js",
     "kun": "./dist/cli/serve-entry.js"
   },
   "scripts": {
@@ -60,11 +61,23 @@
     "dev": "tsc -p tsconfig.build.json --watch"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.5",
+    "@ai-sdk/google": "^4.0.6",
+    "@ai-sdk/mistral": "^4.0.3",
+    "@ai-sdk/openai": "^4.0.5",
+    "@ai-sdk/openai-compatible": "^3.0.3",
+    "@ai-sdk/xai": "^4.0.4",
     "@anthropic-ai/sandbox-runtime": "^0.0.62",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "ai": "^7.0.11",
     "better-sqlite3": "^12.10.0",
     "diff": "^8.0.4",
+    "undici": "^7.29.0",
     "zod": "^4.4.3"
+  },
+  "optionalDependencies": {
+    "@computer-use/nut-js": "^4.2.0",
+    "jimp": "^1.6.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

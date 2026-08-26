@@ -90,7 +90,7 @@ export const StartTurnRequest = z.object({
   /**
    * Optional per-turn mode. Overrides the thread mode for this turn so
    * the GUI can toggle Plan/agent without recreating the thread. In Plan
-   * mode Kun advertises `create_plan` for the whole conversation.
+   * mode PengCodex Core advertises `create_plan` for the whole conversation.
    */
   mode: TurnModeSchema.optional(),
   attachments: z
@@ -103,7 +103,7 @@ export const StartTurnRequest = z.object({
     .optional(),
   attachmentIds: z.array(z.string().min(1)).default([]),
   /**
-   * Optional GUI plan context. When set, Kun advertises the
+   * Optional GUI plan context. When set, PengCodex Core advertises the
    * `create_plan` tool for the turn and writes only to the reserved
    * path advertised in the context.
    */

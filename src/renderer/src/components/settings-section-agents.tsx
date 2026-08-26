@@ -4,6 +4,7 @@ import type {
   AppSettingsPatch,
   AppSettingsV1,
   ModelEndpointFormat,
+  ModelProviderKind,
   ModelProviderProfileV1,
   ModelProviderSettingsV1,
   SandboxMode
@@ -11,6 +12,7 @@ import type {
 import {
   CACHE_ENGINE_MODES,
   DEFAULT_MODEL_PROVIDER_ID,
+  MODEL_PROVIDER_KINDS,
   MODEL_ENDPOINT_FORMATS,
   DEFAULT_WRITE_INLINE_COMPLETION_BASE_URL,
   DEFAULT_WRITE_INLINE_COMPLETION_MAX_TOKENS,
@@ -71,6 +73,15 @@ const MODEL_ENDPOINT_FORMAT_LABEL_KEYS: Record<ModelEndpointFormat, string> = {
   chat_completions: 'modelEndpointChatCompletions',
   responses: 'modelEndpointResponses',
   messages: 'modelEndpointMessages'
+}
+
+const MODEL_PROVIDER_KIND_LABEL_KEYS: Record<ModelProviderKind, string> = {
+  'openai-compatible': 'modelProviderKindOpenAiCompatible',
+  openai: 'modelProviderKindOpenAi',
+  anthropic: 'modelProviderKindAnthropic',
+  google: 'modelProviderKindGoogle',
+  mistral: 'modelProviderKindMistral',
+  xai: 'modelProviderKindXai'
 }
 
 export function modelProvidersSettingsPatch(input: {
@@ -505,6 +516,7 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
     const nextProvider: ModelProviderProfileV1 = {
       id,
       name: t('modelProviderNewName', { index }),
+      providerKind: 'openai-compatible',
       apiKey: '',
       baseUrl: 'https://api.example.com/v1',
       endpointFormat: 'chat_completions',
@@ -616,6 +628,22 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                                 />
                               </label>
                             </div>
+                            <label className="grid gap-1.5 text-[12px] font-semibold text-ds-muted">
+                              {t('modelProviderKind')}
+                              <select
+                                className={selectControlClass}
+                                value={activeProvider.providerKind}
+                                onChange={(e) => updateModelProvider(activeProvider.id, {
+                                  providerKind: e.target.value as ModelProviderKind
+                                })}
+                              >
+                                {MODEL_PROVIDER_KINDS.map((kind) => (
+                                  <option key={kind} value={kind}>
+                                    {t(MODEL_PROVIDER_KIND_LABEL_KEYS[kind])}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
                             <label className="grid gap-1.5 text-[12px] font-semibold text-ds-muted">
                               {t('modelProviderApiKey')}
                               <SecretInput
@@ -1244,7 +1272,12 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                             ['Skills', runtimeInfo?.capabilities?.skills?.status],
                             ['Subagents', runtimeInfo?.capabilities?.subagents?.status],
                             ['Images', runtimeInfo?.capabilities?.attachments?.status],
-                            ['Memory', runtimeInfo?.capabilities?.memory?.status]
+                            ['Memory', runtimeInfo?.capabilities?.memory?.status],
+                            ['LSP', runtimeInfo?.capabilities?.lsp?.status],
+                            ['Browser', runtimeInfo?.capabilities?.browser?.status],
+                            ['Computer Use', runtimeInfo?.capabilities?.computerUse?.status],
+                            ['Graph', runtimeInfo?.capabilities?.graph?.status],
+                            ['Extensions', runtimeInfo?.capabilities?.extensions?.status]
                           ].map(([label, status]) => (
                             <span
                               key={label}
@@ -1267,6 +1300,12 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                           </div>
                           <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
                             Web: <span className="font-mono text-ds-ink">{runtimeInfo?.capabilities?.web?.provider ?? 'none'}</span>
+                          </div>
+                          <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
+                            LSP: <span className="font-mono text-ds-ink">{runtimeInfo?.capabilities?.lsp?.connectedServers ?? 0}/{runtimeInfo?.capabilities?.lsp?.configuredServers ?? 0}</span>
+                          </div>
+                          <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
+                            Extensions: <span className="font-mono text-ds-ink">{runtimeInfo?.capabilities?.extensions?.toolCount ?? 0} tools</span>
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -1301,6 +1340,12 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                         </div>
                         <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
                           {t('kunDiagnosticsAttachments')}: <span className="font-mono text-ds-ink">{toolDiagnostics?.attachments?.count ?? 0}</span>
+                        </div>
+                        <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
+                          LSP servers: <span className="font-mono text-ds-ink">{toolDiagnostics?.lspServers?.length ?? 0}</span>
+                        </div>
+                        <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
+                          Extensions: <span className="font-mono text-ds-ink">{toolDiagnostics?.extensions?.length ?? 0}</span>
                         </div>
                       </div>
                     }

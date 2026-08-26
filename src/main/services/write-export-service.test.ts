@@ -40,7 +40,7 @@ describe('write-export-service helpers', () => {
   it('renders markdown exports with resolved links and inlined local images', async () => {
     const sourcePath = join(workspaceRoot, 'draft.md')
     const imagePath = join(workspaceRoot, 'cover.png')
-    await writeFile(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+    await writeFile(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
 
     const html = await buildWriteExportHtmlDocument({
       sourcePath,
@@ -50,6 +50,30 @@ describe('write-export-service helpers', () => {
     expect(html).toContain('<h1>Heading</h1>')
     expect(html).toContain('src="data:image/png;base64,')
     expect(html).toContain(`href="${pathToFileURL(join(workspaceRoot, 'notes.md')).href}"`)
+  })
+
+  it('omits remote, malformed, and out-of-workspace images from export HTML', async () => {
+    const sourcePath = join(workspaceRoot, 'draft.md')
+    const malformedPath = join(workspaceRoot, 'malformed.png')
+    const outsidePath = join(tmpdir(), `pengcodex-outside-${Date.now()}.png`)
+    await writeFile(malformedPath, Buffer.from('not a png'))
+    await writeFile(outsidePath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+
+    const html = await buildWriteExportHtmlDocument({
+      sourcePath,
+      workspaceRoot,
+      content: [
+        '![Remote](https://example.test/image.png)',
+        '![Malformed](./malformed.png)',
+        `![Outside](${pathToFileURL(outsidePath).href})`
+      ].join('\n\n')
+    })
+
+    expect(html).not.toContain('<img')
+    expect(html).not.toContain('https://example.test/image.png')
+    expect(html).toContain('[Image: Remote]')
+    expect(html).toContain('[Image: Malformed]')
+    expect(html).toContain('[Image: Outside]')
   })
 
   it('renders clipboard html fragments for markdown content', async () => {
@@ -81,7 +105,7 @@ describe('write-export-service helpers', () => {
     const sourcePath = join(workspaceRoot, 'draft.md')
     const imagePath = join(workspaceRoot, 'cover.png')
     await writeFile(sourcePath, '# Heading\n\n![Cover](./cover.png)')
-    await writeFile(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+    await writeFile(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
 
     const result = await copyWriteDocumentAsRichText({
       path: sourcePath,

@@ -1,7 +1,7 @@
 import type { Dispatch, ReactElement, SetStateAction } from 'react'
-import { Bot, ChevronLeft, Globe, Keyboard, PencilLine, Settings, Smartphone } from 'lucide-react'
+import { Bot, ChevronLeft, Globe, Images, Keyboard, PencilLine, Settings, Smartphone, Sparkles } from 'lucide-react'
 
-type SettingsCategory = 'general' | 'write' | 'agents' | 'shortcuts' | 'claw'
+type SettingsCategory = 'general' | 'write' | 'agents' | 'skills' | 'shortcuts' | 'claw' | 'studio'
 
 export function SettingsSidebar({
   category,
@@ -47,6 +47,10 @@ export function SettingsSidebar({
           <Bot className="h-4 w-4 shrink-0 opacity-70" strokeWidth={1.75} />
           {t('agents')}
         </button>
+        <button type="button" className={catCls('skills')} onClick={() => setCategory('skills')}>
+          <Sparkles className="h-4 w-4 shrink-0 opacity-70" strokeWidth={1.75} />
+          {t('skillRegistry')}
+        </button>
         <button type="button" className={catCls('shortcuts')} onClick={() => setCategory('shortcuts')}>
           <Keyboard className="h-4 w-4 shrink-0 opacity-70" strokeWidth={1.75} />
           {t('keyboardShortcuts')}
@@ -55,6 +59,10 @@ export function SettingsSidebar({
           <Smartphone className="h-4 w-4 shrink-0 opacity-70" strokeWidth={1.75} />
           {t('claw')}
         </button>
+        <button type="button" className={catCls('studio')} onClick={() => setCategory('studio')}>
+          <Images className="h-4 w-4 shrink-0 opacity-70" strokeWidth={1.75} />
+          {t('studio')}
+        </button>
       </nav>
       <div className="ds-no-drag mt-auto border-t border-ds-border p-3">
         <div className="flex items-center gap-2 rounded-xl px-2 py-2">
@@ -62,7 +70,7 @@ export function SettingsSidebar({
             <Settings className="h-4 w-4" strokeWidth={1.75} />
           </div>
           <div className="min-w-0 text-[12px] text-ds-muted">
-            <div className="truncate font-medium text-ds-ink">DeepSeek-GUI</div>
+            <div className="truncate font-medium text-ds-ink">PengCodex</div>
             <div className="truncate">{t('settingsFooter')}</div>
           </div>
         </div>

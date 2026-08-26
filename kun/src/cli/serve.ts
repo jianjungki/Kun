@@ -11,6 +11,21 @@ import {
   readOptionalKunConfigFile,
   type LoadedKunConfig
 } from '../config/kun-config.js'
+import type { KunCapabilitiesConfig } from '../contracts/capabilities.js'
+import type { StudioRuntimeConfig } from '../contracts/studio.js'
+import { readImportedMcpServersFile } from '../config/mcp-config-import.js'
+
+const KUN_GUI_MCP_CONFIG_PATH_ENV = 'KUN_GUI_MCP_CONFIG_PATH'
+const RUNTIME_SECRET_ENV_KEYS = [
+  'KUN_RUNTIME_TOKEN',
+  'KUN_API_KEY',
+  'DEEPSEEK_API_KEY',
+  'KUN_WEB_API_KEY',
+  'KUN_WEB_FETCH_API_KEY',
+  'KUN_STUDIO_IMAGE_API_KEY',
+  'KUN_STUDIO_VIDEO_API_KEY',
+  KUN_GUI_MCP_CONFIG_PATH_ENV
+] as const
 
 /**
  * Parse the `kun serve` command line into validated options.
@@ -83,7 +98,10 @@ export function parseServeOptions(
         ? raw['api-key']
         : typeof raw.apiKey === 'string'
           ? raw.apiKey
-          : env.DEEPSEEK_API_KEY ?? configServe.apiKey ?? DEFAULT_SERVE_OPTIONS.apiKey,
+          : env.KUN_API_KEY ??
+            env.DEEPSEEK_API_KEY ??
+            configServe.apiKey ??
+            DEFAULT_SERVE_OPTIONS.apiKey,
     baseUrl:
       typeof raw['base-url'] === 'string'
         ? raw['base-url']
@@ -93,6 +111,14 @@ export function parseServeOptions(
             env.DEEPSEEK_BASE_URL ??
             configServe.baseUrl ??
             DEFAULT_SERVE_OPTIONS.baseUrl,
+    providerKind:
+      typeof raw['provider-kind'] === 'string'
+        ? raw['provider-kind'] as ServeOptions['providerKind']
+        : typeof raw.providerKind === 'string'
+          ? raw.providerKind as ServeOptions['providerKind']
+          : env.KUN_PROVIDER_KIND as ServeOptions['providerKind'] | undefined ??
+            configServe.providerKind ??
+            DEFAULT_SERVE_OPTIONS.providerKind,
     endpointFormat:
       typeof raw['endpoint-format'] === 'string'
         ? raw['endpoint-format'] as ServeOptions['endpointFormat']
@@ -136,30 +162,82 @@ export function parseServeOptions(
     models: loadedConfig?.config.models,
     contextCompaction: loadedConfig?.config.contextCompaction,
     runtime: loadedConfig?.config.runtime,
-    capabilities: loadedConfig?.config.capabilities ?? DEFAULT_SERVE_OPTIONS.capabilities
+    studio: studioConfigWithEnvironment(loadedConfig?.config.studio, env),
+    capabilities: capabilitiesWithEnvironment(
+      loadedConfig?.config.capabilities ?? DEFAULT_SERVE_OPTIONS.capabilities,
+      env
+    )
   }
   return ServeOptionsSchema.parse(merged)
 }
 
+function studioConfigWithEnvironment(
+  studio: StudioRuntimeConfig | undefined,
+  env: Record<string, string | undefined>
+): StudioRuntimeConfig | undefined {
+  if (!studio) return undefined
+  return {
+    ...studio,
+    image: {
+      ...studio.image,
+      ...(env.KUN_STUDIO_IMAGE_API_KEY ? { apiKey: env.KUN_STUDIO_IMAGE_API_KEY } : {})
+    },
+    video: {
+      ...studio.video,
+      ...(env.KUN_STUDIO_VIDEO_API_KEY ? { apiKey: env.KUN_STUDIO_VIDEO_API_KEY } : {})
+    }
+  }
+}
+
+function capabilitiesWithEnvironment(
+  capabilities: KunCapabilitiesConfig,
+  env: Record<string, string | undefined>
+): KunCapabilitiesConfig {
+  const guiMcpServers = readImportedMcpServersFile(env[KUN_GUI_MCP_CONFIG_PATH_ENV])
+  return {
+    ...capabilities,
+    web: {
+      ...capabilities.web,
+      ...(env.KUN_WEB_API_KEY ? { apiKey: env.KUN_WEB_API_KEY } : {}),
+      ...(env.KUN_WEB_FETCH_API_KEY ? { fetchApiKey: env.KUN_WEB_FETCH_API_KEY } : {})
+    },
+    mcp: {
+      ...capabilities.mcp,
+      servers: {
+        ...capabilities.mcp.servers,
+        ...guiMcpServers
+      }
+    }
+  }
+}
+
 /**
  * Validate a pre-constructed options object. Used by tests and by the
- * main process when Kun is started programmatically.
+ * main process when PengCodex Core is started programmatically.
  */
 export function validateServeOptions(input: unknown): ServeOptions {
   return ServeOptionsSchema.parse(input)
 }
 
+/** Remove credentials after parsing so shell/LSP/extension tools cannot inherit them. */
+export function clearRuntimeSecretEnvironment(
+  env: Record<string, string | undefined>
+): void {
+  for (const key of RUNTIME_SECRET_ENV_KEYS) delete env[key]
+}
+
 /** Human-readable usage string, used by the CLI when no args are given. */
-export const SERVE_USAGE = `kun serve [options]
+export const SERVE_USAGE = `pengcodex serve [options]
 
 Options:
   --config <path>          JSON config file (default: {data-dir}/config.json when present)
   --host <host>            Bind address (default 127.0.0.1)
   --port <port>            HTTP port (default ${DEFAULT_SERVE_PORT})
   --data-dir <path>        Root directory for threads, events, and usage
-  --runtime-token <token>  Bearer token for /v1/* requests
-  --api-key <key>          DeepSeek-compatible API key
-  --base-url <url>         DeepSeek-compatible base URL
+  --runtime-token <token>  Bearer token for /v1/* (generated in data dir when omitted)
+  --api-key <key>          Model provider API key
+  --base-url <url>         Model provider base URL
+  --provider-kind <kind>   openai-compatible | openai | anthropic | google | mistral | xai
   --endpoint-format <f>    chat_completions | responses | messages
   --model <model>          Default model id
   --approval-policy <p>    on-request | untrusted | never | auto | suggest

@@ -20,7 +20,8 @@ export type WriteThreadRegistry = {
 type WriteThreadCandidate = Pick<NormalizedThread, 'id' | 'workspace'> &
   Partial<Pick<NormalizedThread, 'title' | 'updatedAt' | 'archived'>>
 
-const WRITE_THREAD_REGISTRY_KEY = 'deepseekgui.write.threadRegistry.v1'
+const WRITE_THREAD_REGISTRY_KEY = 'pengcodex.write.threadRegistry.v1'
+const LEGACY_WRITE_THREAD_REGISTRY_KEY = 'deepseekgui.write.threadRegistry.v1'
 
 export function emptyWriteThreadRegistry(): WriteThreadRegistry {
   return { version: 1, workspaces: {} }
@@ -134,7 +135,7 @@ export function normalizeWriteThreadRegistry(raw: unknown): WriteThreadRegistry 
 export function readWriteThreadRegistry(storage: BrowserStorageLike | null = browserStorage()): WriteThreadRegistry {
   if (!storage) return emptyWriteThreadRegistry()
   try {
-    const raw = storage.getItem(WRITE_THREAD_REGISTRY_KEY)
+    const raw = storage.getItem(WRITE_THREAD_REGISTRY_KEY) ?? storage.getItem(LEGACY_WRITE_THREAD_REGISTRY_KEY)
     return normalizeWriteThreadRegistry(raw ? JSON.parse(raw) : null)
   } catch {
     return emptyWriteThreadRegistry()

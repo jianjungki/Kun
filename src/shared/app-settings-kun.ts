@@ -6,6 +6,7 @@ import {
   DEFAULT_KUN_PORT,
   DEFAULT_CACHE_ENGINE_MODE,
   DEFAULT_MODEL_ENDPOINT_FORMAT,
+  DEFAULT_MODEL_PROVIDER_KIND,
   DEFAULT_SANDBOX_MODE,
   type CacheEngineMode,
   type AppSettingsV1,
@@ -17,6 +18,7 @@ import {
   type KunRuntimeSettingsV1,
   type KunSettingsEnvelopePatchV1,
   type KunSettingsEnvelopeV1,
+  type KunSkillRegistrySettingsV1,
   type KunStorageSettingsV1,
   type KunTokenEconomySettingsV1,
   type KunWebSearchSettingsV1,
@@ -30,6 +32,7 @@ import {
 } from './app-settings-provider'
 
 const LEGACY_COREAGENT_DATA_DIR = '~/.deepseekgui/coreagent'
+const LEGACY_DEEPSEEK_GUI_KUN_DATA_DIR = '~/.deepseekgui/kun'
 const LEGACY_KUN_DEFAULT_MODEL = 'deepseek-chat'
 const LEGACY_LOCAL_HTTP_DEFAULT_PORT = 7878
 
@@ -59,7 +62,7 @@ type LegacyReasoningRuntimeSettingsV1 = {
 }
 
 /**
- * Kun runtime settings. Mirrors the `kun serve` CLI
+ * PengCodex Core runtime settings. Mirrors the `kun serve` CLI
  * options. It is the only active agent settings object the GUI
  * stores after legacy settings have been migrated.
  */
@@ -99,6 +102,7 @@ export function defaultKunRuntimeSettings(
     apiKey: '',
     baseUrl: '',
     providerId: '',
+    providerKind: DEFAULT_MODEL_PROVIDER_KIND,
     endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
     runtimeToken: '',
     dataDir: DEFAULT_KUN_DATA_DIR,
@@ -110,6 +114,7 @@ export function defaultKunRuntimeSettings(
     insecure: false,
     mcpSearch: defaultKunMcpSearchSettings(),
     webSearch: defaultKunWebSearchSettings(),
+    skillRegistry: defaultKunSkillRegistrySettings(),
     storage: defaultKunStorageSettings(),
     contextCompaction: defaultKunContextCompactionSettings(),
     runtimeTuning: defaultKunRuntimeTuningSettings(),
@@ -131,6 +136,13 @@ export function defaultKunWebSearchSettings(): KunWebSearchSettingsV1 {
     baseUrl: '',
     allowDomains: [],
     denyDomains: []
+  }
+}
+
+export function defaultKunSkillRegistrySettings(): KunSkillRegistrySettingsV1 {
+  return {
+    activationMode: 'all',
+    activeSkillIds: []
   }
 }
 
@@ -230,6 +242,11 @@ export function mergeKunRuntimeSettings(
     ...currentWebSearch,
     ...(patch?.webSearch ?? {})
   })
+  const currentSkillRegistry = normalizeKunSkillRegistrySettings(current.skillRegistry)
+  const nextSkillRegistry = normalizeKunSkillRegistrySettings({
+    ...currentSkillRegistry,
+    ...(patch?.skillRegistry ?? {})
+  })
   const currentTokenEconomy = normalizeKunTokenEconomySettings(
     current.tokenEconomy,
     current.tokenEconomyMode
@@ -284,6 +301,7 @@ export function mergeKunRuntimeSettings(
     tokenEconomy: nextTokenEconomy,
     mcpSearch: nextMcpSearch,
     webSearch: nextWebSearch,
+    skillRegistry: nextSkillRegistry,
     storage: nextStorage,
     contextCompaction: nextContextCompaction,
     runtimeTuning: nextRuntimeTuning,
@@ -291,6 +309,15 @@ export function mergeKunRuntimeSettings(
       typeof patch?.cacheEngineMode === 'string'
         ? patch.cacheEngineMode
         : current.cacheEngineMode ?? DEFAULT_CACHE_ENGINE_MODE
+  }
+}
+
+function normalizeKunSkillRegistrySettings(
+  input: Partial<KunSkillRegistrySettingsV1> | undefined
+): KunSkillRegistrySettingsV1 {
+  return {
+    activationMode: input?.activationMode === 'selected' ? 'selected' : 'all',
+    activeSkillIds: uniqueStrings(normalizeStringList(input?.activeSkillIds)).slice(0, 256)
   }
 }
 
@@ -348,6 +375,17 @@ function normalizeStringList(value: unknown): string[] {
   return value
     .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
     .map((item) => item.trim())
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const value of values) {
+    if (seen.has(value)) continue
+    seen.add(value)
+    out.push(value)
+  }
+  return out
 }
 
 function normalizeKunHistoryHygieneSettings(
@@ -478,7 +516,7 @@ export function applyKunRuntimePatch(
 }
 
 export function isKunRuntimeInsecure(runtime: Pick<KunRuntimeSettingsV1, 'insecure' | 'runtimeToken'>): boolean {
-  return runtime.insecure || !runtime.runtimeToken.trim()
+  return runtime.insecure
 }
 
 export function getActiveAgentApiKey(settings: AppSettingsV1): string {
@@ -519,7 +557,9 @@ function upgradeLegacyKunDefaultDataDir(value: unknown): string {
   if (
     !trimmed ||
     normalized === LEGACY_COREAGENT_DATA_DIR ||
-    normalized.endsWith('/.deepseekgui/coreagent')
+    normalized === LEGACY_DEEPSEEK_GUI_KUN_DATA_DIR ||
+    normalized.endsWith('/.deepseekgui/coreagent') ||
+    normalized.endsWith('/.deepseekgui/kun')
   ) {
     return DEFAULT_KUN_DATA_DIR
   }
@@ -562,6 +602,7 @@ export function migrateLegacyAppSettings(parsed: LegacyAppSettingsShape): Partia
     apiKey: legacySource.apiKey,
     baseUrl: legacySource.baseUrl,
     providerId: '',
+    providerKind: DEFAULT_MODEL_PROVIDER_KIND,
     endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
     runtimeToken: isReasoningLegacy ? kunDefaults.runtimeToken : legacyLocalHttp.runtimeToken,
     model: isReasoningLegacy ? legacyReasoning.model : kunDefaults.model,
@@ -595,13 +636,14 @@ export function migrateLegacyAppSettings(parsed: LegacyAppSettingsShape): Partia
     ),
     mcpSearch: normalizeKunMcpSearchSettings(explicitKun.mcpSearch),
     webSearch: normalizeKunWebSearchSettings(explicitKun.webSearch),
+    skillRegistry: normalizeKunSkillRegistrySettings(explicitKun.skillRegistry),
     storage: normalizeKunStorageSettings(explicitKun.storage),
     contextCompaction: normalizeKunContextCompactionSettings(explicitKun.contextCompaction),
     runtimeTuning: normalizeKunRuntimeTuningSettings(explicitKun.runtimeTuning)
   }
   // Strip the legacy `agentProvider` discriminator and the legacy
   // per-provider settings from the surfaced migration result. The
-  // runtime now has a single agent (Kun) and we no longer
+  // runtime now has a single agent (PengCodex Core) and we no longer
   // round-trip the legacy value into the new settings shape.
   const { deepseek: _legacyDeepseek, agents: _agents, agentProvider: _agentProvider, ...rest } = parsed
   void _legacyDeepseek

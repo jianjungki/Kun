@@ -6,6 +6,8 @@ const KUN_RUNTIME_REQUIRED_PATHS = [
   'kun/dist/cli/serve-entry.js',
   'kun/package.json',
   'kun/package-lock.json',
+  'kun/node_modules/ai/package.json',
+  'kun/node_modules/@ai-sdk/openai-compatible/package.json',
   'kun/node_modules/zod/package.json',
   'kun/node_modules/diff/package.json',
   'kun/node_modules/@modelcontextprotocol/sdk/package.json'
@@ -51,8 +53,8 @@ function prunePackedKunDependencies(context) {
   const kunDir = join(root, 'kun')
   if (!existsSync(kunDir)) return
 
-  assertExists(join(kunDir, 'package.json'), 'Kun package manifest')
-  assertExists(join(kunDir, 'node_modules'), 'Kun node_modules')
+  assertExists(join(kunDir, 'package.json'), 'PengCodex Core package manifest')
+  assertExists(join(kunDir, 'node_modules'), 'PengCodex Core node_modules')
 
   const prune = npmCommand(['prune', '--omit=dev', '--ignore-scripts'])
   execFileSync(prune.command, prune.args, {

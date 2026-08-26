@@ -1,4 +1,5 @@
 export * from './model-client.js'
+export * from './media-generation-client.js'
 export * from './tool-host.js'
 export * from './web-provider.js'
 export * from './thread-store.js'

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { dispatchRequest } from '../src/server/http-server.js'
 import { createApprovalRequest } from '../src/domain/approval.js'
 import { makeAssistantTextItem } from '../src/domain/item.js'
@@ -47,7 +47,7 @@ describe('HTTP server', () => {
       }
     }
     expect(body.model).toBe('deepseek-chat')
-    expect(body.capabilities?.contractVersion).toBe(1)
+    expect(body.capabilities?.contractVersion).toBe(2)
     expect(body.capabilities?.model?.inputModalities).toContain('text')
     expect(body.capabilities?.model?.supportsToolCalling).toBe(true)
     expect(body.capabilities?.model?.contextWindowTokens).toBe(1_000_000)
@@ -67,6 +67,80 @@ describe('HTTP server', () => {
     )
 
     expect(response.status).toBe(401)
+  })
+
+  it('keeps Studio media endpoints disabled by default', async () => {
+    const h = buildHarness()
+    const response = await dispatchRequest(
+      h.router,
+      new Request('http://localhost/v1/studio/image', {
+        method: 'POST',
+        headers: { authorization: 'Bearer tok-1', 'content-type': 'application/json' },
+        body: JSON.stringify({ prompt: 'a quiet notebook on a desk' })
+      })
+    )
+
+    expect(response.status).toBe(403)
+    expect(await readJson(response)).toMatchObject({
+      code: 'forbidden',
+      message: 'studio mode is disabled'
+    })
+  })
+
+  it('generates Studio images through the media generation port', async () => {
+    const h = buildHarness()
+    h.runtime.studioConfig = {
+      enabled: true,
+      image: {
+        enabled: true,
+        providerId: 'openai',
+        providerKind: 'openai',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-image-1'
+      },
+      video: {
+        enabled: false,
+        providerId: 'google',
+        providerKind: 'google',
+        apiKey: '',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        model: 'veo-3.1-fast-generate-preview'
+      }
+    }
+    h.runtime.mediaGenerationClient = {
+      async generateImage({ request, config }) {
+        return {
+          kind: 'image',
+          providerKind: config.providerKind,
+          model: request.model ?? config.model ?? 'gpt-image-1',
+          files: [{
+            mediaType: 'image/png',
+            base64: 'aGVsbG8=',
+            dataUrl: 'data:image/png;base64,aGVsbG8=',
+            byteSize: 5
+          }],
+          warnings: []
+        }
+      },
+      async generateVideo() {
+        throw new Error('unexpected video generation')
+      }
+    }
+
+    const response = await dispatchRequest(
+      h.router,
+      new Request('http://localhost/v1/studio/image', {
+        method: 'POST',
+        headers: { authorization: 'Bearer tok-1', 'content-type': 'application/json' },
+        body: JSON.stringify({ prompt: 'a quiet notebook on a desk' })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    const body = await readJson(response) as { kind?: string; files?: Array<{ byteSize?: number }> }
+    expect(body.kind).toBe('image')
+    expect(body.files?.[0]?.byteSize).toBe(5)
   })
 
   it('returns structured validation errors for invalid JSON bodies', async () => {
@@ -116,6 +190,7 @@ describe('HTTP server', () => {
         enabled: false,
         roots: [],
         skills: [],
+        enabledSkillIds: [],
         validationErrors: [],
         lastActivations: []
       },
@@ -185,6 +260,7 @@ describe('HTTP server', () => {
           allowedTools: ['read']
         }
       ],
+      enabledSkillIds: [],
       validationErrors: [],
       lastActivations: []
     })
@@ -1084,6 +1160,6 @@ describe('HTTP server', () => {
     )
     expect(response.status).toBe(200)
     const body = (await readJson(response)) as { path: string }
-    expect(body.path).toBe('/tmp')
+    expect(body.path).toBe(resolve('/tmp'))
   })
 })

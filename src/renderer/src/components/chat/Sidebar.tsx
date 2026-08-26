@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Clock3,
   FileQuestion,
+  Images,
   LayoutGrid,
   Plus,
   Settings,
@@ -30,8 +31,9 @@ import {
 type Props = {
   threads: NormalizedThread[]
   activeThreadId: string | null
-  activeView: 'chat' | 'write' | 'claw' | 'schedule'
+  activeView: 'chat' | 'write' | 'claw' | 'schedule' | 'studio'
   connectPhoneSidebarOpen: boolean
+  studioEnabled: boolean
   pluginsActive: boolean
   runtimeReady: boolean
   threadSearch: string
@@ -52,6 +54,7 @@ type Props = {
   onCodeOpen: () => void
   onWriteOpen: () => void
   onScheduleOpen: () => void
+  onStudioOpen: () => void
   onToggleSidebar: () => void
 }
 
@@ -60,6 +63,7 @@ export function Sidebar({
   activeThreadId,
   activeView,
   connectPhoneSidebarOpen,
+  studioEnabled,
   pluginsActive,
   runtimeReady,
   threadSearch,
@@ -80,6 +84,7 @@ export function Sidebar({
   onCodeOpen,
   onWriteOpen,
   onScheduleOpen,
+  onStudioOpen,
   onToggleSidebar
 }: Props): ReactElement {
   const { t, i18n } = useTranslation('common')
@@ -166,6 +171,14 @@ export function Sidebar({
           onClick={onScheduleOpen}
           active={activeView === 'schedule'}
         />
+        {studioEnabled ? (
+          <SidebarCommandRow
+            icon={<Images className="h-4 w-4" strokeWidth={1.75} />}
+            label={t('studio')}
+            onClick={onStudioOpen}
+            active={activeView === 'studio'}
+          />
+        ) : null}
       </div>
 
       <div className="ds-no-drag mx-1 my-3" />

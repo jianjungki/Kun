@@ -9,7 +9,8 @@ import { InMemoryUserInputGate } from '../adapters/in-memory-user-input-gate.js'
 import { InMemoryEventBus } from '../adapters/in-memory-event-bus.js'
 import { FileSessionStore, FileThreadStore } from '../adapters/file/index.js'
 import { HybridSessionStore, HybridThreadStore } from '../adapters/hybrid/index.js'
-import { DeepseekCompatModelClient } from '../adapters/model/deepseek-compat-model-client.js'
+import { AiSdkModelClient } from '../adapters/model/ai-sdk-model-client.js'
+import { AiSdkMediaGenerationClient } from '../adapters/model/ai-sdk-media-generation-client.js'
 import { CapabilityRegistry } from '../adapters/tool/capability-registry.js'
 import { buildGoalLocalTools } from '../adapters/tool/goal-tools.js'
 import { buildTodoLocalTools } from '../adapters/tool/todo-tools.js'
@@ -18,6 +19,11 @@ import { buildMcpToolProviders } from '../adapters/tool/mcp-tool-provider.js'
 import { buildMemoryToolProviders } from '../adapters/tool/memory-tool-provider.js'
 import { buildDelegationToolProviders } from '../adapters/tool/delegation-tool-provider.js'
 import { buildWebToolProviders } from '../adapters/tool/web-tool-provider.js'
+import { buildBrowserToolProviders } from '../adapters/tool/browser-tool-provider.js'
+import { buildComputerUseToolProviders } from '../adapters/tool/computer-use-tool-provider.js'
+import { buildExtensionToolProviders } from '../adapters/tool/extension-tool-provider.js'
+import { buildGraphToolProviders } from '../adapters/tool/graph-tool-provider.js'
+import { buildLspToolProviders } from '../adapters/tool/lsp-tool-provider.js'
 import { LocalWorkspaceInspector } from '../adapters/workspace/local-workspace-inspector.js'
 import { createImmutablePrefix, prepareRequestWithCacheEngine } from '../cache/index.js'
 import {
@@ -38,6 +44,7 @@ import {
   DEFAULT_STORAGE_CONFIG,
   expandHomePath,
   type RuntimeTuningConfig,
+  type StudioConfig,
   type StorageConfig
 } from '../config/kun-config.js'
 import { InflightTracker } from '../loop/inflight-tracker.js'
@@ -57,10 +64,16 @@ import {
   DEFAULT_MODEL_ENDPOINT_FORMAT,
   type ModelEndpointFormat
 } from '../contracts/model-endpoint-format.js'
+import {
+  DEFAULT_MODEL_PROVIDER_KIND,
+  type ModelProviderKind
+} from '../contracts/model-provider.js'
 import { SkillRuntime } from '../skills/skill-runtime.js'
 import { FileMemoryStore } from '../memory/memory-store.js'
 import { DelegationRuntime, FileDelegationStore } from '../delegation/delegation-runtime.js'
 import { createChildAgentExecutor } from '../delegation/child-agent-executor.js'
+import { FileGraphStore, GraphRuntime } from '../delegation/graph-runtime.js'
+import { ExtensionRuntime, managedExtensionRoot } from '../extensions/extension-runtime.js'
 
 export type KunServeRuntimeOptions = {
   host: string
@@ -70,6 +83,7 @@ export type KunServeRuntimeOptions = {
   runtimeToken: string
   apiKey: string
   baseUrl: string
+  providerKind?: ModelProviderKind
   endpointFormat?: ModelEndpointFormat
   model: string
   approvalPolicy: ApprovalPolicy
@@ -80,6 +94,7 @@ export type KunServeRuntimeOptions = {
   models?: ModelConfig
   contextCompaction?: ContextCompactionConfig
   runtime?: RuntimeTuningConfig
+  studio?: StudioConfig
   storage?: StorageConfig
   capabilities?: KunCapabilitiesConfig
   startedAt?: string
@@ -126,7 +141,7 @@ export async function createKunServeRuntime(
     pinnedConstraints: [
       'system: preserve user intent across compaction',
       'system: keep the HTTP/SSE contract stable for the GUI',
-      'system: keep the stable Kun prefix byte-stable for prompt-cache reuse'
+      'system: keep the stable PengCodex Core prefix byte-stable for prompt-cache reuse'
     ]
   })
   const turnService = new TurnService({
@@ -142,12 +157,14 @@ export async function createKunServeRuntime(
   const threadService = new ThreadService({ threadStore, sessionStore, events, ids, nowIso })
   const threadCacheEngineMode: ThreadRecord['cacheEngineMode'] = 'hybrid'
   await seedUsageCarryover({ threadStore, sessionStore, usageService })
-  const modelClient = new DeepseekCompatModelClient({
+  const modelClient = new AiSdkModelClient({
+    providerKind: options.providerKind ?? DEFAULT_MODEL_PROVIDER_KIND,
+    providerId: options.providerKind,
     baseUrl: options.baseUrl,
     apiKey: options.apiKey,
-    endpointFormat: options.endpointFormat ?? DEFAULT_MODEL_ENDPOINT_FORMAT,
     model: options.model
   })
+  const mediaGenerationClient = new AiSdkMediaGenerationClient()
   const modelProfiles = modelContextProfilesFromConfig({
     contextCompaction: options.contextCompaction,
     models: options.models
@@ -166,6 +183,15 @@ export async function createKunServeRuntime(
   })
   const mcpProviders = await buildMcpToolProviders(options.capabilities?.mcp)
   const webProviders = buildWebToolProviders(options.capabilities?.web)
+  const lspProviders = buildLspToolProviders(options.capabilities?.lsp)
+  const browserProviders = buildBrowserToolProviders(options.capabilities?.browser)
+  const computerUseProviders = await buildComputerUseToolProviders(options.capabilities?.computerUse)
+  const extensionRuntime = options.capabilities?.extensions.enabled
+    ? await ExtensionRuntime.create(
+        options.capabilities.extensions,
+        managedExtensionRoot(options.dataDir)
+      )
+    : undefined
   const skillRuntime = await SkillRuntime.create(options.capabilities?.skills)
   const attachmentStore = options.capabilities?.attachments.enabled
     ? new FileAttachmentStore({
@@ -191,7 +217,11 @@ export async function createKunServeRuntime(
     },
     ...mcpProviders.providers,
     ...webProviders.providers,
-    ...buildMemoryToolProviders(memoryStore)
+    ...buildMemoryToolProviders(memoryStore),
+    ...lspProviders.providers,
+    ...browserProviders.providers,
+    ...computerUseProviders.providers,
+    ...buildExtensionToolProviders(extensionRuntime)
   ]
   const childRegistry = new CapabilityRegistry(baseToolProviders)
   const childToolHost = new LocalToolHost({ registry: childRegistry, readTracker: true })
@@ -220,6 +250,14 @@ export async function createKunServeRuntime(
         recordExternalUsage: (threadId, usage) => {
           usageService.record(threadId, usage)
         }
+      })
+    : undefined
+  const graphRuntime = options.capabilities?.graph.enabled && delegationRuntime
+    ? new GraphRuntime({
+        config: options.capabilities.graph,
+        delegation: delegationRuntime,
+        store: new FileGraphStore(join(options.dataDir, 'task-graphs')),
+        nowIso
       })
     : undefined
   const capabilities = buildRuntimeCapabilityManifest({
@@ -255,6 +293,29 @@ export async function createKunServeRuntime(
     },
     subagents: {
       available: Boolean(delegationRuntime)
+    },
+    lsp: {
+      available: lspProviders.available,
+      connectedServers: lspProviders.connectedServers(),
+      reason: lspProviders.diagnostics.find((diagnostic) => !diagnostic.available)?.reason
+    },
+    browser: {
+      available: browserProviders.available,
+      reason: browserProviders.reason
+    },
+    computerUse: {
+      available: computerUseProviders.available,
+      reason: computerUseProviders.reason
+    },
+    graph: {
+      available: Boolean(graphRuntime),
+      reason: graphRuntime ? undefined : 'graph orchestration requires enabled subagents'
+    },
+    extensions: {
+      available: Boolean(extensionRuntime && extensionRuntime.toolCount() > 0),
+      discoveredExtensions: extensionRuntime?.extensions.length ?? 0,
+      toolCount: extensionRuntime?.toolCount() ?? 0,
+      reason: extensionRuntime?.diagnostics.find((diagnostic) => diagnostic.status !== 'loaded')?.reason
     }
   })
   const registry = new CapabilityRegistry([
@@ -273,7 +334,8 @@ export async function createKunServeRuntime(
       available: true,
       tools: buildTodoLocalTools(threadService)
     },
-    ...buildDelegationToolProviders(delegationRuntime)
+    ...buildDelegationToolProviders(delegationRuntime),
+    ...buildGraphToolProviders(graphRuntime)
   ])
   const toolHost = new LocalToolHost({ registry, readTracker: true })
   const loop = new AgentLoop({
@@ -322,6 +384,16 @@ export async function createKunServeRuntime(
     }
   })
   const startedAt = options.startedAt ?? nowIso()
+  const activeRuns = new Set<Promise<unknown>>()
+  const trackRun = <T>(run: Promise<T>): Promise<T> => {
+    activeRuns.add(run)
+    void run.then(
+      () => activeRuns.delete(run),
+      () => activeRuns.delete(run)
+    )
+    return run
+  }
+  let shutdownPromise: Promise<void> | undefined
   return {
     threadService,
     turnService,
@@ -336,11 +408,13 @@ export async function createKunServeRuntime(
     toolHost,
     ...(attachmentStore ? { attachmentStore } : {}),
     ...(memoryStore ? { memoryStore } : {}),
+    mediaGenerationClient,
+    ...(options.studio ? { studioConfig: options.studio } : {}),
     runTurn(threadId, turnId) {
-      return loop.runTurn(threadId, turnId)
+      return trackRun(loop.runTurn(threadId, turnId))
     },
     runReview(input) {
-      return reviewService.runReview(input)
+      return trackRun(reviewService.runReview(input))
     },
     runtimeToken: options.runtimeToken,
     insecure: options.insecure,
@@ -352,6 +426,7 @@ export async function createKunServeRuntime(
       configPath: options.configPath,
       dataDir: options.dataDir,
       model: options.model,
+      providerKind: options.providerKind ?? DEFAULT_MODEL_PROVIDER_KIND,
       endpointFormat: options.endpointFormat ?? DEFAULT_MODEL_ENDPOINT_FORMAT,
       approvalPolicy: options.approvalPolicy,
       sandboxMode: options.sandboxMode,
@@ -366,6 +441,8 @@ export async function createKunServeRuntime(
       mcpServers: mcpProviders.diagnostics,
       mcpSearch: mcpProviders.search,
       webProviders: webProviders.diagnostics,
+      lspServers: lspProviders.diagnostics,
+      extensions: extensionRuntime?.diagnostics ?? [],
       skills: skillRuntime.diagnostics(),
       attachments: attachmentStore
         ? await attachmentStore.diagnostics()
@@ -375,12 +452,23 @@ export async function createKunServeRuntime(
         : { enabled: false, rootDir: '', activeCount: 0, tombstoneCount: 0, lastInjectedIds: [] }
     }),
     skills: () => skillRuntime.diagnostics(),
-    shutdown: async () => {
-      try {
-        await mcpProviders.close()
-      } finally {
-        await stores.shutdown?.()
-      }
+    shutdown: () => {
+      shutdownPromise ??= (async () => {
+        turnService.abortAllTurns()
+        userInputGate.reset()
+        approvalGate.reset('runtime shutting down')
+        await waitForPromises(activeRuns, 5_000)
+        try {
+          await Promise.allSettled([
+            mcpProviders.close(),
+            lspProviders.close(),
+            browserProviders.close()
+          ])
+        } finally {
+          await stores.shutdown?.()
+        }
+      })()
+      return shutdownPromise
     }
   }
 }
@@ -456,11 +544,25 @@ export async function startKunServe(
     ...server,
     runtime,
     close: async () => {
+      const serverClosing = server.close()
       try {
-        await server.close()
-      } finally {
         await runtime.shutdown?.()
+      } finally {
+        await serverClosing
       }
     }
   }
+}
+
+async function waitForPromises(promises: Set<Promise<unknown>>, timeoutMs: number): Promise<void> {
+  if (promises.size === 0) return
+  let timer: NodeJS.Timeout | undefined
+  await Promise.race([
+    Promise.allSettled([...promises]),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, timeoutMs)
+      timer.unref()
+    })
+  ])
+  if (timer) clearTimeout(timer)
 }

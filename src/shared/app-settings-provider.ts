@@ -1,27 +1,116 @@
 import {
   DEFAULT_DEEPSEEK_BASE_URL,
+  DEFAULT_MODEL_PROVIDER_KIND,
   DEFAULT_MODEL_ENDPOINT_FORMAT,
   DEFAULT_MODEL_PROVIDER_ID,
+  DEFAULT_OPENAI_COMPAT_BASE_URL,
   type AppSettingsV1,
   type KunRuntimeSettingsV1,
+  type ModelProviderKind,
   type ModelProviderProfilePatchV1,
   type ModelProviderProfileV1,
   type ModelProviderSettingsPatchV1,
   type ModelProviderSettingsV1
 } from './app-settings-types'
 import { normalizeModelEndpointFormat } from '../../kun/src/contracts/model-endpoint-format.js'
+import { normalizeModelProviderKind } from '../../kun/src/contracts/model-provider.js'
 import { getKunRuntimeSettings } from './app-settings-kun'
-import { normalizeDeepseekBaseUrl } from './app-settings-normalizers'
 import { DEFAULT_COMPOSER_MODEL_IDS } from './default-composer-models'
 
 const DEFAULT_MODEL_PROVIDER_NAME = 'DeepSeek'
+const CUSTOM_PROVIDER_BASE_URL = 'https://api.example.com/v1'
+
+const MODEL_PROVIDER_PRESETS: ModelProviderProfileV1[] = [
+  {
+    id: DEFAULT_MODEL_PROVIDER_ID,
+    name: DEFAULT_MODEL_PROVIDER_NAME,
+    providerKind: 'openai-compatible',
+    apiKey: '',
+    baseUrl: DEFAULT_DEEPSEEK_BASE_URL,
+    endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
+    models: DEFAULT_COMPOSER_MODEL_IDS.filter((id) => id !== 'auto')
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    providerKind: 'openai',
+    apiKey: '',
+    baseUrl: DEFAULT_OPENAI_COMPAT_BASE_URL,
+    endpointFormat: 'responses',
+    models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini']
+  },
+  {
+    id: 'anthropic',
+    name: 'Anthropic',
+    providerKind: 'anthropic',
+    apiKey: '',
+    baseUrl: 'https://api.anthropic.com/v1',
+    endpointFormat: 'messages',
+    models: ['claude-sonnet-4-5', 'claude-opus-4-1', 'claude-3-5-haiku-latest']
+  },
+  {
+    id: 'google',
+    name: 'Google Gemini',
+    providerKind: 'google',
+    apiKey: '',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    endpointFormat: 'chat_completions',
+    models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash']
+  },
+  {
+    id: 'mistral',
+    name: 'Mistral',
+    providerKind: 'mistral',
+    apiKey: '',
+    baseUrl: 'https://api.mistral.ai/v1',
+    endpointFormat: 'chat_completions',
+    models: ['mistral-large-latest', 'mistral-medium-latest', 'codestral-latest']
+  },
+  {
+    id: 'xai',
+    name: 'xAI',
+    providerKind: 'xai',
+    apiKey: '',
+    baseUrl: 'https://api.x.ai/v1',
+    endpointFormat: 'chat_completions',
+    models: ['grok-4', 'grok-3', 'grok-3-mini']
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    providerKind: 'openai-compatible',
+    apiKey: '',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    endpointFormat: 'chat_completions',
+    models: ['openai/gpt-4o-mini', 'anthropic/claude-sonnet-4', 'google/gemini-2.5-flash']
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama',
+    providerKind: 'openai-compatible',
+    apiKey: '',
+    baseUrl: 'http://127.0.0.1:11434/v1',
+    endpointFormat: 'chat_completions',
+    models: ['llama3.1', 'qwen2.5-coder', 'mistral']
+  },
+  {
+    id: 'custom-openai-compatible',
+    name: 'Custom OpenAI Compatible',
+    providerKind: 'openai-compatible',
+    apiKey: '',
+    baseUrl: CUSTOM_PROVIDER_BASE_URL,
+    endpointFormat: 'chat_completions',
+    models: []
+  }
+]
 
 export function defaultModelProviderSettings(): ModelProviderSettingsV1 {
-  const defaultProvider = defaultModelProviderProfile('', DEFAULT_DEEPSEEK_BASE_URL)
+  const providers = defaultModelProviderProfiles('', DEFAULT_DEEPSEEK_BASE_URL)
+  const defaultProvider = providers.find((provider) => provider.id === DEFAULT_MODEL_PROVIDER_ID) ?? providers[0]
   return {
     apiKey: defaultProvider.apiKey,
     baseUrl: defaultProvider.baseUrl,
-    providers: [defaultProvider]
+    providers
   }
 }
 
@@ -32,18 +121,20 @@ export function normalizeModelProviderSettings(
   const apiKey = typeof input?.apiKey === 'string' ? input.apiKey.trim() : defaults.apiKey
   const baseUrl =
     typeof input?.baseUrl === 'string' && input.baseUrl.trim()
-      ? normalizeDeepseekBaseUrl(input.baseUrl)
+      ? normalizeModelBaseUrl(input.baseUrl, DEFAULT_DEEPSEEK_BASE_URL)
       : defaults.baseUrl
   const rawProviders = Array.isArray(input?.providers) ? input.providers : []
   const providersById = new Map<string, ModelProviderProfileV1>()
-  const defaultProvider = defaultModelProviderProfile(apiKey, baseUrl)
-  providersById.set(defaultProvider.id, defaultProvider)
+  const defaultProviders = defaultModelProviderProfiles(apiKey, baseUrl)
+  for (const provider of defaultProviders) {
+    providersById.set(provider.id, provider)
+  }
   for (const rawProvider of rawProviders) {
     const provider = normalizeModelProviderProfile(rawProvider)
     if (!provider) continue
     providersById.set(provider.id, provider.id === DEFAULT_MODEL_PROVIDER_ID
       ? {
-          ...defaultProvider,
+          ...(defaultProviders.find((item) => item.id === DEFAULT_MODEL_PROVIDER_ID) ?? provider),
           ...provider,
           apiKey,
           baseUrl
@@ -83,7 +174,8 @@ export function resolveModelProviderApiKey(settings: AppSettingsV1): string {
 }
 
 export function resolveModelProviderBaseUrl(settings: AppSettingsV1): string {
-  return normalizeDeepseekBaseUrl(getDefaultModelProviderProfile(settings).baseUrl)
+  const provider = getDefaultModelProviderProfile(settings)
+  return normalizeModelBaseUrl(provider.baseUrl, defaultBaseUrlForProviderKind(provider.providerKind))
 }
 
 export function getDefaultModelProviderProfile(settings: AppSettingsV1): ModelProviderProfileV1 {
@@ -115,15 +207,15 @@ export function resolveKunRuntimeSettings(settings: AppSettingsV1): KunRuntimeSe
   const provider = getModelProviderProfile(settings, runtime.providerId)
   const runtimeApiKey = runtime.apiKey?.trim() ?? ''
   const runtimeBaseUrl = runtime.baseUrl?.trim() ?? ''
-  const providerBaseUrl = provider.baseUrl.trim() || DEFAULT_DEEPSEEK_BASE_URL
+  const providerBaseUrl = provider.baseUrl.trim() || defaultBaseUrlForProviderKind(provider.providerKind)
 
   return {
     ...runtime,
     apiKey: runtimeApiKey || provider.apiKey.trim(),
-    baseUrl:
-      runtimeBaseUrl && runtimeBaseUrl !== DEFAULT_DEEPSEEK_BASE_URL
-        ? normalizeDeepseekBaseUrl(runtimeBaseUrl)
-        : normalizeDeepseekBaseUrl(providerBaseUrl),
+    providerKind: provider.providerKind,
+    baseUrl: runtimeBaseUrl
+      ? normalizeModelBaseUrl(runtimeBaseUrl, providerBaseUrl)
+      : normalizeModelBaseUrl(providerBaseUrl, defaultBaseUrlForProviderKind(provider.providerKind)),
     endpointFormat: provider.endpointFormat
   }
 }
@@ -132,11 +224,21 @@ function defaultModelProviderProfile(apiKey: string, baseUrl: string): ModelProv
   return {
     id: DEFAULT_MODEL_PROVIDER_ID,
     name: DEFAULT_MODEL_PROVIDER_NAME,
+    providerKind: DEFAULT_MODEL_PROVIDER_KIND,
     apiKey: apiKey.trim(),
-    baseUrl: normalizeDeepseekBaseUrl(baseUrl),
+    baseUrl: normalizeModelBaseUrl(baseUrl, DEFAULT_DEEPSEEK_BASE_URL),
     endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
     models: DEFAULT_COMPOSER_MODEL_IDS.filter((id) => id !== 'auto')
   }
+}
+
+function defaultModelProviderProfiles(apiKey: string, baseUrl: string): ModelProviderProfileV1[] {
+  const defaultProvider = defaultModelProviderProfile(apiKey, baseUrl)
+  return MODEL_PROVIDER_PRESETS.map((preset) =>
+    preset.id === DEFAULT_MODEL_PROVIDER_ID
+      ? defaultProvider
+      : { ...preset, models: [...preset.models] }
+  )
 }
 
 function normalizeModelProviderProfile(
@@ -144,19 +246,22 @@ function normalizeModelProviderProfile(
 ): ModelProviderProfileV1 | null {
   const id = normalizeModelProviderId(input?.id)
   if (!id) return null
+  const preset = MODEL_PROVIDER_PRESETS.find((provider) => provider.id === id)
   const name = typeof input?.name === 'string' && input.name.trim() ? input.name.trim() : id
+  const providerKind = normalizeModelProviderKind(input?.providerKind ?? preset?.providerKind)
   const baseUrl =
     typeof input?.baseUrl === 'string' && input.baseUrl.trim()
-      ? normalizeDeepseekBaseUrl(input.baseUrl)
-      : DEFAULT_DEEPSEEK_BASE_URL
+      ? normalizeModelBaseUrl(input.baseUrl, preset?.baseUrl ?? defaultBaseUrlForProviderKind(providerKind))
+      : preset?.baseUrl ?? defaultBaseUrlForProviderKind(providerKind)
   const models = normalizeProviderModels(input?.models)
   return {
     id,
     name,
+    providerKind,
     apiKey: typeof input?.apiKey === 'string' ? input.apiKey.trim() : '',
     baseUrl,
     endpointFormat: normalizeModelEndpointFormat(input?.endpointFormat),
-    models
+    models: models.length > 0 ? models : preset?.models ?? []
   }
 }
 
@@ -175,4 +280,25 @@ export function normalizeModelProviderId(value: unknown): string {
   return typeof value === 'string'
     ? value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64)
     : ''
+}
+
+function defaultBaseUrlForProviderKind(providerKind: ModelProviderKind): string {
+  switch (providerKind) {
+    case 'openai':
+    case 'openai-compatible':
+      return DEFAULT_OPENAI_COMPAT_BASE_URL
+    case 'anthropic':
+      return 'https://api.anthropic.com/v1'
+    case 'google':
+      return 'https://generativelanguage.googleapis.com/v1beta'
+    case 'mistral':
+      return 'https://api.mistral.ai/v1'
+    case 'xai':
+      return 'https://api.x.ai/v1'
+  }
+}
+
+function normalizeModelBaseUrl(value: string | null | undefined, fallback: string): string {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  return trimmed || fallback
 }

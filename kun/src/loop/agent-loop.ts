@@ -327,7 +327,7 @@ export class AgentLoop {
     } catch (error) {
       const raw = error instanceof Error ? error.message : String(error)
       // Best-effort enrichment so the renderer can show "what failed where"
-      // instead of the bare "Kun turn failed" string. See issue #26.
+      // instead of the bare "PengCodex Core turn failed" string. See issue #26.
       const modelInfo = this.opts.model && 'config' in this.opts.model
         ? (this.opts.model as { config: { model?: string; baseUrl?: string } }).config
         : undefined
@@ -337,7 +337,7 @@ export class AgentLoop {
         ? (error.stack?.split('\n').slice(0, 3).join(' | ') ?? '')
         : ''
       const message = [
-        '[Kun turn failed]',
+        '[PengCodex Core turn failed]',
         `turn=${turnId}`,
         `thread=${threadId}`,
         `model=${modelName}`,
@@ -914,7 +914,14 @@ export class AgentLoop {
         )
         return 'failed'
       }
-      if (stopReason === 'stop' && activeGoalInstruction) return 'continue'
+      // An active goal normally keeps the model loop alive after a textual
+      // progress update so the model can continue working in the same turn.
+      // If the model stops without producing text or a tool call, there is no
+      // progress to justify another request; continuing here would spin
+      // forever when a provider returns an empty stop response.
+      if (stopReason === 'stop' && activeGoalInstruction && textAccumulator.value.trim()) {
+        return 'continue'
+      }
       return 'stop'
     }
     const dispatched = await this.dispatchToolCalls({
@@ -1114,6 +1121,14 @@ export class AgentLoop {
             } as Partial<TurnItem>)
             if (existing) return
             await this.opts.turns.applyItem(input.threadId, item)
+            // The first streamed update creates the live result projection.
+            // Emit an update as well so consumers that subscribe specifically
+            // to progress events receive the same payload immediately.
+            await this.opts.turns.updateItem(input.threadId, item.id, {
+              output: item.kind === 'tool_result' ? item.output : undefined,
+              isError: item.kind === 'tool_result' ? item.isError : undefined,
+              status: 'running'
+            } as Partial<TurnItem>)
           })
         } catch (error) {
           if (input.context.abortSignal.aborted || !this.isRecoverableToolDispatchError(error)) {
@@ -1798,7 +1813,7 @@ export class AgentLoop {
   /** Convenience factory for tests: builds a loop with sensible defaults. */
   static defaultPrefix(): ImmutablePrefix {
     return createImmutablePrefix({
-      systemPrompt: 'You are Kun, a careful and helpful assistant.',
+      systemPrompt: 'You are PengCodex Core, a careful and helpful assistant.',
       pinnedConstraints: ['user: preserve recent turns', 'project: keep responses concise']
     })
   }
@@ -1880,6 +1895,7 @@ function normalizeApprovalPolicy(
   value: string | undefined
 ): ToolHostContext['approvalPolicy'] {
   switch (value) {
+    case 'on-request':
     case 'never':
     case 'auto':
     case 'suggest':
@@ -1912,8 +1928,8 @@ function buildToolCatalogDriftMessage(toolCatalog: {
   const sample = toolCatalog.toolNames.slice(0, 12).join(', ')
   const suffix = toolCatalog.toolNames.length > 12 ? `, +${toolCatalog.toolNames.length - 12} more` : ''
   const policy = changeKind === 'additive'
-    ? 'Only additive tool changes are allowed in-place; Kun will continue with the refreshed tool list.'
-    : 'Non-additive tool changes can invalidate prompt-cache assumptions; Kun stopped this turn. Start a new thread after editing, removing, or reordering tool schemas.'
+    ? 'Only additive tool changes are allowed in-place; PengCodex Core will continue with the refreshed tool list.'
+    : 'Non-additive tool changes can invalidate prompt-cache assumptions; PengCodex Core stopped this turn. Start a new thread after editing, removing, or reordering tool schemas.'
   return [
     `Tool catalog changed for this thread (${toolCatalog.toolCount} tools, fingerprint ${toolCatalog.fingerprint}).`,
     policy,
@@ -1934,7 +1950,7 @@ function buildModelCompactionPrompt(input: {
     Math.max(1_024, input.maxBytes)
   )
   return [
-    'Summarize the following Kun conversation history for a context fold.',
+    'Summarize the following PengCodex Core conversation history for a context fold.',
     'Preserve user goals, requirements, decisions, files touched, tool outcomes, errors, constraints, active/pinned skills, and unresolved next steps.',
     'Do not invent facts. Do not include generic advice. Prefer concise bullets grouped by topic.',
     '',

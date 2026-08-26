@@ -10,6 +10,7 @@ import {
   defaultKunRuntimeSettings,
   defaultModelProviderSettings,
   defaultScheduleSettings,
+  defaultStudioSettings,
   defaultWriteSettings,
   type AppSettingsV1
 } from '../shared/app-settings'
@@ -36,7 +37,8 @@ function createSettings(binaryPath: string): AppSettingsV1 {
       kun: {
         ...defaultKunRuntimeSettings(8899),
         binaryPath,
-        autoStart: true
+        autoStart: true,
+        runtimeToken: 'test-runtime-token'
       }
     },
     workspaceRoot: '/tmp/workspace',
@@ -47,6 +49,7 @@ function createSettings(binaryPath: string): AppSettingsV1 {
     write: defaultWriteSettings(),
     claw: defaultClawSettings(),
     schedule: defaultScheduleSettings(),
+    studio: defaultStudioSettings(),
     guiUpdate: { channel: 'stable' },
     codePromptPrefix: ''
   }
@@ -114,7 +117,7 @@ describe('startKunChild', () => {
     )
     const module = await import('./kun-process')
     await expect(module.startKunChild(createSettings(script))).rejects.toThrow(
-      /Kun exited during startup with code 23[\s\S]*bind failed on port 8899/
+      /PengCodex Core exited during startup with code 23[\s\S]*bind failed on port 8899/
     )
     expect(module.isKunChildRunning()).toBe(false)
     await module.stopKunChildAndWait()
@@ -216,6 +219,61 @@ describe('syncGuiManagedKunConfig', () => {
     expect(parsed.capabilities.mcp.search).toMatchObject({ enabled: false, mode: 'auto' })
   })
 
+  it('writes effective Studio media provider settings to Kun config', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    const module = await import('./kun-process')
+    const settings = createSettings('/tmp/fake-kun-child.js')
+    settings.provider.providers = settings.provider.providers.map((provider) =>
+      provider.id === 'google' ? { ...provider, apiKey: 'google-key' } : provider
+    )
+    settings.studio = {
+      enabled: true,
+      image: {
+        ...settings.studio.image,
+        enabled: true,
+        providerId: 'openai',
+        apiKey: 'image-key',
+        baseUrl: '',
+        model: 'gpt-image-1'
+      },
+      video: {
+        ...settings.studio.video,
+        enabled: true,
+        providerId: 'google',
+        apiKey: '',
+        baseUrl: '',
+        model: 'veo-3.1-fast-generate-preview'
+      }
+    }
+
+    await module.syncGuiManagedKunConfig(tempRoot, defaultKunRuntimeSettings(), {
+      settings
+    })
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
+    expect(KunConfigSchema.safeParse(parsed).success).toBe(true)
+    expect(parsed.studio).toMatchObject({
+      enabled: true,
+      image: {
+        enabled: true,
+        providerId: 'openai',
+        providerKind: 'openai',
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-image-1'
+      },
+      video: {
+        enabled: true,
+        providerId: 'google',
+        providerKind: 'google',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        model: 'veo-3.1-fast-generate-preview'
+      }
+    })
+    expect(parsed.studio.image.apiKey).toBeUndefined()
+    expect(parsed.studio.video.apiKey).toBeUndefined()
+  })
+
   it('adds the built-in schedule MCP server to Kun runtime capabilities', async () => {
     if (!tempRoot) throw new Error('temp root not initialized')
     const configPath = join(tempRoot, 'config.json')
@@ -237,23 +295,8 @@ describe('syncGuiManagedKunConfig', () => {
 
     const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
     expect(parsed.capabilities.mcp.enabled).toBe(true)
-    expect(parsed.capabilities.mcp.servers.gui_schedule).toMatchObject({
-      enabled: true,
-      transport: 'stdio',
-      command: '/tmp/electron',
-      args: [
-        '/tmp/deepseek-gui-test-app/out/main/claw-schedule-mcp-node-entry.js',
-        '--gui-schedule-mcp-server',
-        '--base-url',
-        'http://127.0.0.1:9788',
-        '--secret',
-        'top-secret'
-      ],
-      env: {
-        ELECTRON_RUN_AS_NODE: '1'
-      },
-      trustScope: 'user'
-    })
+    expect(parsed.capabilities.mcp.servers.gui_schedule).toBeUndefined()
+    expect(readFileSync(configPath, 'utf8')).not.toContain('top-secret')
   })
 
   it('adds GUI project and configured global skill roots to Kun runtime capabilities', async () => {
@@ -285,6 +328,24 @@ describe('syncGuiManagedKunConfig', () => {
       join(workspaceRoot, '.codex', 'skills'),
       extraRoot
     ]))
+    expect(parsed.capabilities.skills.enabledSkillIds).toEqual([])
+  })
+
+  it('writes selected Skill registry ids to Kun runtime capabilities', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    const module = await import('./kun-process')
+
+    await module.syncGuiManagedKunConfig(tempRoot, {
+      ...defaultKunRuntimeSettings(),
+      skillRegistry: {
+        activationMode: 'selected',
+        activeSkillIds: ['review', 'bug-hunt', 'review']
+      }
+    })
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
+    expect(parsed.capabilities.skills.enabledSkillIds).toEqual(['review', 'bug-hunt'])
   })
 
   it('writes GUI-managed MCP search settings without removing existing servers', async () => {
@@ -343,6 +404,36 @@ describe('syncGuiManagedKunConfig', () => {
         web: {
           enabled: true,
           fetchEnabled: true
+        },
+        lsp: {
+          enabled: true,
+          servers: {
+            typescript: {
+              command: 'typescript-language-server',
+              args: ['--stdio'],
+              extensions: ['ts']
+            }
+          }
+        },
+        browser: {
+          enabled: true,
+          cdpEndpoint: 'http://127.0.0.1:9222',
+          allowedDomains: ['example.test']
+        },
+        computerUse: {
+          enabled: false,
+          backend: 'nutjs'
+        },
+        graph: {
+          enabled: true,
+          maxParallel: 2,
+          maxNodes: 6
+        },
+        extensions: {
+          enabled: true,
+          roots: ['/tmp/extensions'],
+          trustedWorkspaceRoots: ['/tmp/workspace'],
+          allowExecutables: ['node']
         }
       }
     }), 'utf8')
@@ -455,6 +546,23 @@ describe('syncGuiManagedKunConfig', () => {
     expect(parsed.capabilities.attachments).toMatchObject({ enabled: true })
     expect(parsed.capabilities.mcp.servers.github.command).toBe('github-mcp')
     expect(parsed.capabilities.web.fetchEnabled).toBe(true)
+    expect(parsed.capabilities.lsp.servers.typescript).toMatchObject({
+      command: 'typescript-language-server',
+      extensions: ['ts']
+    })
+    expect(parsed.capabilities.browser).toMatchObject({
+      enabled: true,
+      cdpEndpoint: 'http://127.0.0.1:9222',
+      allowedDomains: ['example.test']
+    })
+    expect(parsed.capabilities.computerUse).toMatchObject({ enabled: false, backend: 'nutjs' })
+    expect(parsed.capabilities.graph).toMatchObject({ enabled: true, maxParallel: 2, maxNodes: 6 })
+    expect(parsed.capabilities.extensions).toMatchObject({
+      enabled: true,
+      roots: ['/tmp/extensions'],
+      trustedWorkspaceRoots: ['/tmp/workspace'],
+      allowExecutables: ['node']
+    })
     expect(parsed.capabilities.mcp.search).toMatchObject({
       enabled: true,
       mode: 'search',
@@ -496,37 +604,32 @@ describe('syncGuiManagedKunConfig', () => {
 
     const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
     expect(parsed.capabilities.mcp.enabled).toBe(true)
-    expect(parsed.capabilities.mcp.servers['stata-mcp']).toMatchObject({
-      enabled: true,
-      transport: 'stdio',
-      command: 'uvx',
-      args: ['stata-mcp'],
-      env: {
-        STATA_CLI: 'D:\\stata\\StataMP-64.exe'
-      },
-      trustScope: 'user'
-    })
-    expect(parsed.capabilities.mcp.servers['docs-mcp']).toMatchObject({
-      enabled: true,
-      transport: 'streamable-http',
-      url: 'https://mcp.example.test/mcp',
-      headers: {
-        Authorization: 'Bearer docs-token'
-      },
-      trustScope: 'user'
-    })
+    expect(parsed.capabilities.mcp.servers['stata-mcp']).toBeUndefined()
+    expect(parsed.capabilities.mcp.servers['docs-mcp']).toBeUndefined()
+    expect(readFileSync(configPath, 'utf8')).not.toContain('docs-token')
   })
 
-  it('replaces unparsable historical Kun config with a valid GUI-managed config', async () => {
+  it('preserves unparsable historical Kun config and reports the error', async () => {
     if (!tempRoot) throw new Error('temp root not initialized')
     const configPath = join(tempRoot, 'config.json')
     writeFileSync(configPath, '{ legacy config', 'utf8')
     const module = await import('./kun-process')
 
-    await module.syncGuiManagedKunConfig(tempRoot, defaultKunRuntimeSettings())
+    await expect(module.syncGuiManagedKunConfig(tempRoot, defaultKunRuntimeSettings()))
+      .rejects.toThrow(/Invalid JSON/)
+    expect(readFileSync(configPath, 'utf8')).toBe('{ legacy config')
+  })
 
-    const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as unknown
-    expect(KunConfigSchema.safeParse(parsed).success).toBe(true)
+  it('preserves schema-invalid capability sections instead of clearing them', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    const original = JSON.stringify({ capabilities: { browser: { enabled: 'yes' } } })
+    writeFileSync(configPath, original, 'utf8')
+    const module = await import('./kun-process')
+
+    await expect(module.syncGuiManagedKunConfig(tempRoot, defaultKunRuntimeSettings()))
+      .rejects.toThrow(/capabilities\.browser/)
+    expect(readFileSync(configPath, 'utf8')).toBe(original)
   })
 
   it('does not enable MCP when the capability is explicitly disabled', async () => {
@@ -554,19 +657,7 @@ describe('syncGuiManagedKunConfig', () => {
 
     const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
     expect(parsed.capabilities.mcp.enabled).toBe(false)
-    expect(parsed.capabilities.mcp.servers.gui_schedule).toMatchObject({
-      transport: 'stdio',
-      command: '/tmp/electron',
-      args: [
-        '/tmp/deepseek-gui-test-app/out/main/claw-schedule-mcp-node-entry.js',
-        '--gui-schedule-mcp-server',
-        '--base-url',
-        'http://127.0.0.1:8788'
-      ],
-      env: {
-        ELECTRON_RUN_AS_NODE: '1'
-      }
-    })
+    expect(parsed.capabilities.mcp.servers.gui_schedule).toBeUndefined()
   })
 
   it('does not override an explicitly disabled attachment capability', async () => {
@@ -717,9 +808,10 @@ describe('syncGuiManagedKunConfig', () => {
       provider: 'searxng',
       fetchProvider: 'jina-reader',
       fetchFallbackEnabled: true,
-      fetchReaderBaseUrl: 'https://r.jina.ai/',
-      fetchApiKey: 'reader-key'
+      fetchReaderBaseUrl: 'https://r.jina.ai/'
     })
+    expect(parsed.capabilities.web.fetchApiKey).toBeUndefined()
+    expect(readFileSync(configPath, 'utf8')).not.toContain('reader-key')
   })
 
   it('lets explicit GUI web search settings override a stale disabled web capability', async () => {

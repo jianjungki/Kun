@@ -1,10 +1,10 @@
 # Agent Runtime Notes
 
-DeepSeek GUI has one live agent runtime: **Kun**.
+PengCodex has one live agent runtime: **PengCodex Core**.
 
 Do not add a second live provider, provider switcher, runtime diagnostics panel,
 or legacy CodeWhale/Reasonix process path. Code, Write, and Connect phone all
-enter the same Kun HTTP/SSE boundary. Connect phone still uses the internal
+enter the same PengCodex Core HTTP/SSE boundary. Connect phone still uses the internal
 `claw` name in code for compatibility.
 
 ## Allowed Extension Path
@@ -50,19 +50,19 @@ npm run build
 
 Manual smoke:
 
-- Code can create a Kun thread, stream a reply, approve/deny tools, and
+- Code can create a PengCodex Core thread, stream a reply, approve/deny tools, and
   interrupt a turn.
-- CodeWhale parity endpoints still work through Kun: thread search/archive
+- CodeWhale parity endpoints still work through PengCodex Core: thread search/archive
   filters, fork, session resume, request_user_input submit/cancel, and usage.
 - Cache telemetry uses DeepSeek native `prompt_cache_hit_tokens` /
-  `prompt_cache_miss_tokens`; hot Kun turns should stay above 90% cache
+  `prompt_cache_miss_tokens`; hot PengCodex Core turns should stay above 90% cache
   hit after the stable prefix is warm.
 - Immutable prefix drift and malformed tool-call/tool-result history must be
   caught before a request reaches DeepSeek.
 - Write can open the workspace, request inline completion, and use selected-text
   assistant actions.
-- Connect phone can save settings and run a manual task through a Kun thread.
-- Settings -> Agents shows only Kun.
+- Connect phone can save settings and run a manual task through a PengCodex Core thread.
+- Settings -> Agents shows only PengCodex Core.
 
 The full plan is in
 [`docs/kun-architecture.md`](./kun-architecture.md).

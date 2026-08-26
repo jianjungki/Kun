@@ -60,7 +60,7 @@ function createMacPackContext(root: string): {
     electronPlatformName: 'darwin',
     packager: {
       appInfo: {
-        productFilename: 'DeepSeek GUI'
+        productFilename: 'PengCodex'
       }
     }
   }
@@ -96,6 +96,10 @@ describe('electron-builder Kun packaging', () => {
     expect(builderConfig.files).toEqual(expect.arrayContaining([
       '!**/node_modules/openclaw/**/*'
     ]))
+  })
+
+  it('runs the PengCodex CLI PATH hooks during Windows install and uninstall', () => {
+    expect(builderConfig.nsis.include).toBe('build/installer.nsh')
   })
 
   it('validates the unpacked Kun runtime before release artifacts are created', () => {
@@ -141,8 +145,8 @@ describe('electron-builder Kun packaging', () => {
 
   it('checks timestamp candidates across nested macOS signed code', () => {
     const root = tempRoot()
-    const appBundle = join(root, 'DeepSeek GUI.app')
-    const mainExecutable = join(appBundle, 'Contents/MacOS/DeepSeek GUI')
+    const appBundle = join(root, 'PengCodex.app')
+    const mainExecutable = join(appBundle, 'Contents/MacOS/PengCodex')
     const framework = join(appBundle, 'Contents/Frameworks/Electron Framework.framework')
     const nativeAddon = join(
       appBundle,

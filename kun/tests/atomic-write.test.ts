@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -104,6 +104,32 @@ describe('atomicWriteFile', () => {
       })).rejects.toMatchObject({ code: 'EPERM' })
       expect(renameMock).toHaveBeenCalledTimes(2)
       await expect(readFile(path, 'utf-8')).rejects.toMatchObject({ code: 'ENOENT' })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('can disable the Windows direct-write fallback for append-only log compaction', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'kun-atomic-'))
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    renameMock.mockImplementation(async () => {
+      const error = new Error('operation not permitted') as Error & { code: string }
+      error.code = 'EPERM'
+      throw error
+    })
+
+    try {
+      const path = join(dir, 'events.jsonl')
+      await writeFile(path, '{"seq":0}', 'utf8')
+      await expect(atomicWriteFile(path, '{"seq":1}', {
+        directWriteFallback: false,
+        renameRetry: {
+          attempts: 2,
+          baseDelayMs: 0
+        }
+      })).rejects.toMatchObject({ code: 'EPERM' })
+      expect(await readFile(path, 'utf8')).toBe('{"seq":0}')
+      expect((await readdir(dir)).filter((name) => name.endsWith('.tmp'))).toEqual([])
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
